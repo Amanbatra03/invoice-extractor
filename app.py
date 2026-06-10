@@ -6,6 +6,7 @@ import pandas as pd
 import streamlit as st
 from dotenv import load_dotenv
 
+from auth import check_password
 from ingest import ingest_pdf
 from models.invoice import InvoiceSchema
 from rag.agent import AgentState, build_agent
@@ -159,6 +160,9 @@ button[data-baseweb="tab"] {
 </style>
 """
 st.markdown(_CSS, unsafe_allow_html=True)
+
+if not check_password():
+    st.stop()
 
 # Session state — rediscover previously ingested invoices from disk
 if "invoices" not in st.session_state:
