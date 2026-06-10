@@ -80,7 +80,8 @@ def test_extract_invoice_gemini_raises_without_api_key(tmp_path, monkeypatch):
         extract_invoice_gemini(fake_image)
 
 
-def test_extract_invoice_gemini_returns_empty_on_bad_response(tmp_path):
+def test_extract_invoice_gemini_raises_on_bad_response(tmp_path):
+    from rag.extractor import ExtractionError
     fake_image = tmp_path / "test.jpg"
     fake_image.write_bytes(b"")
 
@@ -88,8 +89,5 @@ def test_extract_invoice_gemini_returns_empty_on_bad_response(tmp_path):
          patch("vision.gemini._validate_image") as mock_val:
         mock_get.return_value = _make_mock_client("Sorry, cannot extract.")
         mock_val.return_value = MagicMock()
-
-        result = extract_invoice_gemini(fake_image)
-
-    assert isinstance(result, InvoiceSchema)
-    assert result.vendor_name is None
+        with pytest.raises(ExtractionError):
+            extract_invoice_gemini(fake_image)

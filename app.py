@@ -378,22 +378,23 @@ with extract_tab:
         selected_ext = invoices[selected_key_ext]
 
         if st.button("Extract All Fields", type="primary", key="extract_btn"):
-            if selected_ext["type"] == "pdf":
-                try:
+            from rag.extractor import ExtractionError
+            try:
+                if selected_ext["type"] == "pdf":
                     retriever = HybridRetriever(selected_ext["sha_key"], base_dir=BASE_DIR)
                     llm = _get_ollama_llm()
                     with st.spinner("Extracting structured fields…"):
                         schema = extract_invoice(retriever, llm)
-                    invoices[selected_key_ext]["schema_cache"] = schema
-                except Exception as e:
-                    st.error(f"Extraction failed: {e}\n\nMake sure Ollama is running: `ollama serve`")
-            else:
-                try:
+                else:
                     with st.spinner("Extracting via Gemini…"):
                         schema = extract_invoice_gemini(selected_ext["path"])
-                    invoices[selected_key_ext]["schema_cache"] = schema
-                except (EnvironmentError, ValueError) as e:
-                    st.error(str(e))
+                invoices[selected_key_ext]["schema_cache"] = schema
+            except ExtractionError as e:
+                st.error(f"Extraction failed — the model did not return usable data. Try again. ({e})")
+            except (EnvironmentError, ValueError) as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"Extraction failed: {e}\n\nMake sure Ollama is running: `ollama serve`")
 
         cached = invoices[selected_key_ext].get("schema_cache")
         if cached:
@@ -403,13 +404,16 @@ with extract_tab:
             m3.metric("Invoice #", cached.invoice_number or "—")
             m4.metric("Date", cached.invoice_date or "—")
 
+            from rag.validator import has_amounts
             checks = validate_invoice(cached)
             if checks:
                 st.subheader("Validation checks")
                 for w in checks:
                     st.warning(w)
-            else:
+            elif has_amounts(cached):
                 st.caption("All arithmetic checks pass.")
+            else:
+                st.warning("No monetary fields were extracted — treat this result as incomplete.")
 
             header_df, items_df = _schema_to_dfs(cached)
             st.subheader("Header fields")
@@ -454,6 +458,7 @@ with compare_tab:
                 selected_for_compare.append(key)
 
         if len(selected_for_compare) >= 2 and st.button("Compare Selected", type="primary"):
+            from rag.extractor import ExtractionError
             named_schemas: list[tuple[str, InvoiceSchema]] = []
             for key in selected_for_compare:
                 inv = invoices[key]
@@ -465,10 +470,14 @@ with compare_tab:
                         with st.spinner(f"Extracting {inv['name']}…"):
                             schema = extract_invoice(retriever, llm)
                         invoices[key]["schema_cache"] = schema
-                    except Exception as e:
-                        st.error(f"Failed to extract {inv['name']}: {e}")
-                        schema = InvoiceSchema()
+                    except (ExtractionError, Exception) as e:
+                        st.error(f"{inv['name']} excluded from comparison — extraction failed: {e}")
+                        continue
                 named_schemas.append((inv["name"], schema))
+
+            if len(named_schemas) < 2:
+                st.warning("Need at least 2 successful extractions to compare.")
+                st.stop()
 
             result = compare_invoices(named_schemas)
             table = result["table"]

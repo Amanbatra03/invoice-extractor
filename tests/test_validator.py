@@ -1,5 +1,5 @@
 from models.invoice import InvoiceSchema, LineItem
-from rag.validator import validate_invoice
+from rag.validator import validate_invoice, has_amounts
 
 
 def test_consistent_invoice_has_no_warnings():
@@ -48,3 +48,15 @@ def test_missing_fields_produce_no_warnings():
 def test_small_rounding_differences_tolerated():
     schema = InvoiceSchema(subtotal=192.81, tax=19.28, total_amount=212.09)
     assert validate_invoice(schema) == []
+
+
+def test_has_amounts_true_with_total():
+    assert has_amounts(InvoiceSchema(total_amount=10.0)) is True
+
+
+def test_has_amounts_true_with_line_item_total():
+    assert has_amounts(InvoiceSchema(line_items=[LineItem(description="A", total=5.0)])) is True
+
+
+def test_has_amounts_false_when_empty():
+    assert has_amounts(InvoiceSchema()) is False

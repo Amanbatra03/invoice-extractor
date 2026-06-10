@@ -40,3 +40,10 @@ def validate_invoice(schema: InvoiceSchema) -> list[str]:
             warnings.append(f"{field} is negative: {value}")
 
     return warnings
+
+
+def has_amounts(schema: InvoiceSchema) -> bool:
+    """True if the extraction contains at least one monetary value."""
+    if any(getattr(schema, f) is not None for f in ("subtotal", "tax", "total_amount")):
+        return True
+    return any(li.total is not None or li.unit_price is not None for li in schema.line_items)
