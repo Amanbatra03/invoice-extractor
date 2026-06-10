@@ -13,6 +13,7 @@ from rag.comparator import compare_invoices
 from rag.extractor import extract_invoice
 from rag.hybrid_retriever import HybridRetriever
 from rag.utils import load_config
+from rag.validator import validate_invoice
 from store import discover_invoices, delete_invoice
 from vision.gemini import ask_invoice, extract_invoice_gemini
 
@@ -397,6 +398,14 @@ with extract_tab:
             m2.metric("Vendor", cached.vendor_name or "—")
             m3.metric("Invoice #", cached.invoice_number or "—")
             m4.metric("Date", cached.invoice_date or "—")
+
+            checks = validate_invoice(cached)
+            if checks:
+                st.subheader("Validation checks")
+                for w in checks:
+                    st.warning(w)
+            else:
+                st.caption("All arithmetic checks pass.")
 
             header_df, items_df = _schema_to_dfs(cached)
             st.subheader("Header fields")
