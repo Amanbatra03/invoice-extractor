@@ -13,6 +13,7 @@ from rag.comparator import compare_invoices
 from rag.extractor import extract_invoice
 from rag.hybrid_retriever import HybridRetriever
 from rag.utils import load_config
+from store import discover_invoices, delete_invoice
 from vision.gemini import ask_invoice, extract_invoice_gemini
 
 load_dotenv()
@@ -158,9 +159,9 @@ button[data-baseweb="tab"] {
 """
 st.markdown(_CSS, unsafe_allow_html=True)
 
-# Session state
+# Session state — rediscover previously ingested invoices from disk
 if "invoices" not in st.session_state:
-    st.session_state["invoices"] = {}
+    st.session_state["invoices"] = discover_invoices(BASE_DIR)
 
 
 def _safe_filename(name: str, suffix: str) -> str:
@@ -274,6 +275,7 @@ with st.sidebar:
         if col2.button("✕", key=f"del_{key}", help=f"Remove {inv['name']}"):
             to_delete.append(key)
     for k in to_delete:
+        delete_invoice(st.session_state["invoices"][k], BASE_DIR)
         del st.session_state["invoices"][k]
         st.rerun()
 
