@@ -1,14 +1,16 @@
 import os
 from pathlib import Path
 
-import google.generativeai as genai
 from dotenv import load_dotenv
+from google import genai
 from PIL import Image
 
 from models.invoice import InvoiceSchema
 from rag.utils import extract_json_from_text
 
 load_dotenv()
+
+_MODEL = "gemini-2.0-flash"
 
 _SYSTEM_PROMPT = (
     "You are an expert invoice analyst. "
@@ -33,12 +35,11 @@ Return ONLY a valid JSON object with these exact keys (use null for missing valu
 }"""
 
 
-def _get_model():
+def _get_client() -> genai.Client:
     api_key = os.getenv("GOOGLE_API_KEY")
     if not api_key:
         raise EnvironmentError("GOOGLE_API_KEY not set. Add it to your .env file.")
-    genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-2.0-flash")
+    return genai.Client(api_key=api_key)
 
 
 def _validate_image(image_path: Path) -> Image.Image:
@@ -51,9 +52,11 @@ def _validate_image(image_path: Path) -> Image.Image:
 
 
 def ask_invoice(image_path: Path, question: str) -> str:
-    model = _get_model()
+    client = _get_client()
     img = _validate_image(image_path)
-    response = model.generate_content([_SYSTEM_PROMPT, img, question])
+    response = client.models.generate_content(
+        model=_MODEL, contents=[_SYSTEM_PROMPT, img, question]
+    )
     if response.prompt_feedback and response.prompt_feedback.block_reason:
         raise RuntimeError(f"Gemini blocked this request: {response.prompt_feedback.block_reason}")
     return response.text
@@ -62,10 +65,12 @@ def ask_invoice(image_path: Path, question: str) -> str:
 def extract_invoice_gemini(image_path: Path) -> InvoiceSchema:
     # Config/input errors must propagate so the UI can surface them;
     # only model-output problems degrade to an empty schema.
-    model = _get_model()
+    client = _get_client()
     img = _validate_image(image_path)
     try:
-        response = model.generate_content([_EXTRACTION_PROMPT, img])
+        response = client.models.generate_content(
+            model=_MODEL, contents=[_EXTRACTION_PROMPT, img]
+        )
         if response.prompt_feedback and response.prompt_feedback.block_reason:
             return InvoiceSchema()
         json_str = extract_json_from_text(response.text)

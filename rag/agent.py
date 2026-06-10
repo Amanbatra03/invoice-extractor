@@ -21,8 +21,8 @@ def build_agent(retriever: HybridRetriever, llm=None):
     cfg = load_config()
 
     if llm is None:
-        from langchain_community.llms import Ollama
-        llm = Ollama(model=cfg.LLM, temperature=0)
+        from langchain_ollama import OllamaLLM
+        llm = OllamaLLM(model=cfg.LLM, temperature=0)
 
     def query_rewriter(state: AgentState) -> AgentState:
         prompt = (

@@ -34,8 +34,8 @@ def _safe_filename(name: str, suffix: str) -> str:
 
 
 def _get_ollama_llm():
-    from langchain_community.llms import Ollama
-    return Ollama(model=cfg.LLM, temperature=0)
+    from langchain_ollama import OllamaLLM
+    return OllamaLLM(model=cfg.LLM, temperature=0)
 
 
 def _schema_to_dfs(schema: InvoiceSchema):

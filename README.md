@@ -160,7 +160,7 @@ invoice-extractor/
 | Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
 | Vector store | ChromaDB (PersistentClient) |
 | Sparse retrieval | rank-bm25 (BM25Okapi) |
-| PDF loading | PyPDF + LangChain |
+| PDF loading | pypdf |
 | Schema validation | Pydantic v2 |
 | Testing | pytest |
 
