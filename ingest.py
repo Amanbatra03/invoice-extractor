@@ -12,6 +12,20 @@ def _sha_key(pdf_path: Path) -> str:
     return hashlib.sha256(pdf_path.read_bytes()).hexdigest()[:8]
 
 
+_MIN_TEXT_CHARS = 32  # below this across all pages, treat the PDF as scanned
+
+
+def _extract_page_texts(pdf_path: Path) -> list[str]:
+    from pypdf import PdfReader
+
+    reader = PdfReader(str(pdf_path))
+    page_texts = [(page.extract_text() or "") for page in reader.pages]
+    if sum(len(t.strip()) for t in page_texts) < _MIN_TEXT_CHARS:
+        import rag.ocr
+        page_texts = rag.ocr.ocr_pdf_pages(pdf_path)
+    return page_texts
+
+
 def ingest_pdf(
     pdf_path: Path,
     base_dir: Path = Path("."),
@@ -42,17 +56,15 @@ def ingest_pdf(
     # Heavy imports (torch, transformers) deferred so importing this module stays cheap
     from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
-    from pypdf import PdfReader
 
-    # Load PDF and split per page (page numbers are 1-based for display)
-    reader = PdfReader(str(pdf_path))
+    # Load PDF (with OCR fallback for scans) and split per page (1-based pages)
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=cfg.CHUNK_SIZE, chunk_overlap=cfg.CHUNK_OVERLAP
     )
     texts: list[str] = []
     pages: list[int] = []
-    for page_num, page in enumerate(reader.pages, start=1):
-        for piece in splitter.split_text(page.extract_text() or ""):
+    for page_num, page_text in enumerate(_extract_page_texts(pdf_path), start=1):
+        for piece in splitter.split_text(page_text):
             texts.append(piece)
             pages.append(page_num)
 
