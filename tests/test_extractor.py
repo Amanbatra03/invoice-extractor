@@ -6,8 +6,18 @@ from models.invoice import InvoiceSchema
 
 def _make_retriever(text: str):
     r = MagicMock()
+    r.all_chunks.return_value = [{"text": text, "page": 1}]
     r.retrieve.return_value = [{"text": text, "page": 1, "score": 0.9}]
     return r
+
+
+def test_extract_uses_whole_document_not_retrieval():
+    retriever = _make_retriever("Total: $110.00")
+    llm = MagicMock()
+    llm.invoke.return_value = '{"vendor_name": "X", "line_items": []}'
+    extract_invoice(retriever, llm)
+    retriever.all_chunks.assert_called_once()
+    retriever.retrieve.assert_not_called()
 
 
 def test_extract_returns_invoice_schema():

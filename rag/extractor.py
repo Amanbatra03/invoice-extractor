@@ -22,10 +22,8 @@ Invoice context:
 {context}"""
 
 
-def extract_invoice(
-    retriever: HybridRetriever, llm, query: str = "extract all invoice fields"
-) -> InvoiceSchema:
-    chunks = retriever.retrieve(query)
+def extract_invoice(retriever: HybridRetriever, llm) -> InvoiceSchema:
+    chunks = retriever.all_chunks()
     context = "\n\n".join(c["text"] for c in chunks)
     raw = llm.invoke(_EXTRACTION_PROMPT.format(context=context))
     json_str = extract_json_from_text(raw)

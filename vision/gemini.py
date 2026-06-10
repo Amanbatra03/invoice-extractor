@@ -69,7 +69,12 @@ def extract_invoice_gemini(image_path: Path) -> InvoiceSchema:
     client = _get_client()
     img = _validate_image(image_path)
     response = client.models.generate_content(
-        model=_MODEL, contents=[_EXTRACTION_PROMPT, img]
+        model=_MODEL,
+        contents=[_EXTRACTION_PROMPT, img],
+        config={
+            "response_mime_type": "application/json",
+            "response_schema": InvoiceSchema,
+        },
     )
     if response.prompt_feedback and response.prompt_feedback.block_reason:
         raise RuntimeError(f"Gemini blocked this request: {response.prompt_feedback.block_reason}")

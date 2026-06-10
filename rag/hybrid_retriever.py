@@ -74,3 +74,10 @@ class HybridRetriever:
 
         fused.sort(key=lambda x: x["score"], reverse=True)
         return fused[: self._num_results]
+
+    def all_chunks(self) -> list[dict]:
+        """The full corpus in page order — for whole-document extraction."""
+        return [
+            {"text": text, "page": page}
+            for text, page in zip(self._texts, self._pages)
+        ]
