@@ -22,6 +22,10 @@ Invoice context:
 {context}"""
 
 
+class ExtractionError(RuntimeError):
+    """The LLM did not produce a parseable, schema-valid extraction."""
+
+
 def extract_invoice(
     retriever: HybridRetriever, llm, query: str = "extract all invoice fields"
 ) -> InvoiceSchema:
@@ -30,8 +34,8 @@ def extract_invoice(
     raw = llm.invoke(_EXTRACTION_PROMPT.format(context=context))
     json_str = extract_json_from_text(raw)
     if json_str is None:
-        return InvoiceSchema()
+        raise ExtractionError("Model response contained no JSON object.")
     try:
         return InvoiceSchema.model_validate_json(json_str)
-    except Exception:
-        return InvoiceSchema()
+    except Exception as exc:
+        raise ExtractionError(f"Model JSON did not match the invoice schema: {exc}") from exc

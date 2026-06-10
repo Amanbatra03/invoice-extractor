@@ -6,6 +6,7 @@ from google import genai
 from PIL import Image
 
 from models.invoice import InvoiceSchema
+from rag.extractor import ExtractionError
 from rag.utils import extract_json_from_text
 
 load_dotenv()
@@ -63,19 +64,19 @@ def ask_invoice(image_path: Path, question: str) -> str:
 
 
 def extract_invoice_gemini(image_path: Path) -> InvoiceSchema:
-    # Config/input errors must propagate so the UI can surface them;
-    # only model-output problems degrade to an empty schema.
+    # Config/input errors (missing key, bad image) propagate as-is;
+    # model-output problems raise ExtractionError so the UI can say "retry".
     client = _get_client()
     img = _validate_image(image_path)
+    response = client.models.generate_content(
+        model=_MODEL, contents=[_EXTRACTION_PROMPT, img]
+    )
+    if response.prompt_feedback and response.prompt_feedback.block_reason:
+        raise RuntimeError(f"Gemini blocked this request: {response.prompt_feedback.block_reason}")
+    json_str = extract_json_from_text(response.text)
+    if json_str is None:
+        raise ExtractionError("Gemini response contained no JSON object.")
     try:
-        response = client.models.generate_content(
-            model=_MODEL, contents=[_EXTRACTION_PROMPT, img]
-        )
-        if response.prompt_feedback and response.prompt_feedback.block_reason:
-            return InvoiceSchema()
-        json_str = extract_json_from_text(response.text)
-        if json_str:
-            return InvoiceSchema.model_validate_json(json_str)
-    except Exception:
-        pass
-    return InvoiceSchema()
+        return InvoiceSchema.model_validate_json(json_str)
+    except Exception as exc:
+        raise ExtractionError(f"Gemini JSON did not match the invoice schema: {exc}") from exc
