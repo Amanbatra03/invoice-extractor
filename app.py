@@ -22,6 +22,133 @@ BASE_DIR = Path(__file__).parent
 
 st.set_page_config(page_title="Invoice Analyst", page_icon="🧾", layout="wide")
 
+_CSS = """
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600&family=Outfit:wght@400;500;600&display=swap');
+
+html, body,
+[data-testid="stAppViewContainer"] *:not([data-testid="stIconMaterial"]):not([class*="material-symbols"]),
+[data-testid="stSidebar"] *:not([data-testid="stIconMaterial"]):not([class*="material-symbols"]) {
+    font-family: 'Outfit', 'Segoe UI', sans-serif;
+}
+h1, h2, h3, [data-testid="stMetricValue"] {
+    font-family: 'Fraunces', Georgia, serif !important;
+    letter-spacing: -0.015em;
+}
+
+/* Brand header */
+.stMarkdown .brand-title {
+    font-family: 'Fraunces', Georgia, serif !important;
+    font-size: 2.1rem !important;
+    font-weight: 600;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: #23211C;
+}
+.stMarkdown .brand-tagline {
+    color: #6E6A5E;
+    font-size: 0.92rem;
+    margin: 0.15rem 0 0 0;
+}
+.brand-rule {
+    border: none;
+    border-top: 1px solid #E7E4DA;
+    margin: 0.9rem 0 0.4rem 0;
+}
+
+/* Sidebar */
+[data-testid="stSidebar"] {
+    background: #F4F1EA;
+    border-right: 1px solid #E7E4DA;
+}
+.step-label {
+    font-size: 0.78rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: #1F5F45;
+    margin-bottom: 0;
+}
+
+/* Buttons */
+.stButton > button, .stDownloadButton > button {
+    border-radius: 10px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    transition: transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
+}
+.stButton > button:hover, .stDownloadButton > button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 14px rgba(31, 95, 69, 0.16);
+}
+.stButton > button:active, .stDownloadButton > button:active {
+    transform: scale(0.98);
+}
+.stButton > button:focus-visible, .stDownloadButton > button:focus-visible {
+    outline: 2px solid #1F5F45;
+    outline-offset: 2px;
+}
+
+/* Tabs */
+button[data-baseweb="tab"] {
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    font-size: 0.95rem;
+}
+
+/* Invoice list rows */
+.inv-row { padding: 0.1rem 0; }
+.inv-badge {
+    display: inline-block;
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    padding: 0.1rem 0.4rem;
+    margin-left: 0.45rem;
+    border-radius: 4px;
+    background: #E4EFE8;
+    color: #1F5F45;
+    vertical-align: middle;
+}
+.inv-badge.image { background: #EFE9DC; color: #7A5E2A; }
+
+/* Empty state */
+.empty-state {
+    background: #F2EFE8;
+    border-radius: 14px;
+    padding: 2.2rem 2.4rem;
+    margin-top: 0.8rem;
+}
+.empty-state h3 {
+    margin: 0 0 0.5rem 0;
+    font-size: 1.25rem;
+}
+.empty-state p {
+    color: #6E6A5E;
+    margin: 0.2rem 0;
+    max-width: 38rem;
+}
+.empty-state .kbd {
+    background: #E7E4DA;
+    border-radius: 5px;
+    padding: 0.05rem 0.45rem;
+    font-size: 0.85em;
+    color: #23211C;
+}
+
+/* Metric cards */
+[data-testid="stMetric"] {
+    background: #F2EFE8;
+    border-radius: 14px;
+    padding: 0.9rem 1.1rem;
+}
+[data-testid="stMetricValue"] { font-variant-numeric: tabular-nums; }
+
+/* Dataframes / numbers */
+[data-testid="stDataFrame"] { font-variant-numeric: tabular-nums; }
+</style>
+"""
+st.markdown(_CSS, unsafe_allow_html=True)
+
 # Session state
 if "invoices" not in st.session_state:
     st.session_state["invoices"] = {}
@@ -53,12 +180,37 @@ def _schema_to_dfs(schema: InvoiceSchema):
     return pd.DataFrame(header), pd.DataFrame(line_items) if line_items else pd.DataFrame()
 
 
+def _empty_state():
+    st.markdown(
+        """
+        <div class="empty-state">
+          <h3>No invoices loaded yet</h3>
+          <p>Use the sidebar to get started — choose a PDF or image,
+          then press <span class="kbd">Add Invoice</span>.</p>
+          <p>PDFs are analysed fully offline with a local model.
+          Images are read by Gemini and need an API key in <span class="kbd">.env</span>.</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.header("Upload Invoice")
+    st.header("Upload")
+
+    st.markdown('<p class="step-label">STEP 1 · CHOOSE A FILE</p>', unsafe_allow_html=True)
     uploaded = st.file_uploader("PDF or Image", type=["pdf", "jpg", "jpeg", "png"])
 
-    if uploaded and st.button("Add Invoice", type="primary"):
+    st.markdown('<p class="step-label">STEP 2 · LOAD IT</p>', unsafe_allow_html=True)
+    add_clicked = st.button(
+        "Add Invoice", type="primary", use_container_width=True,
+        disabled=uploaded is None,
+    )
+    if uploaded is None:
+        st.caption("The button unlocks once a file is chosen.")
+
+    if uploaded and add_clicked:
         suffix = Path(uploaded.name).suffix.lower()
         with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
             tmp.write(uploaded.getvalue())
@@ -98,33 +250,49 @@ with st.sidebar:
         tmp_path.unlink(missing_ok=True)
 
     st.divider()
-    st.subheader("Loaded Invoices")
+    st.subheader("Loaded invoices")
+    if not st.session_state["invoices"]:
+        st.caption("Nothing loaded yet.")
     to_delete = []
     for key, inv in st.session_state["invoices"].items():
         col1, col2 = st.columns([4, 1])
-        col1.markdown(f"**{inv['name']}** `{inv['type']}`")
-        if col2.button("✕", key=f"del_{key}"):
+        badge_cls = "inv-badge image" if inv["type"] == "image" else "inv-badge"
+        col1.markdown(
+            f'<div class="inv-row"><strong>{inv["name"]}</strong>'
+            f'<span class="{badge_cls}">{inv["type"]}</span></div>',
+            unsafe_allow_html=True,
+        )
+        if col2.button("✕", key=f"del_{key}", help=f"Remove {inv['name']}"):
             to_delete.append(key)
     for k in to_delete:
         del st.session_state["invoices"][k]
         st.rerun()
 
     st.divider()
-    st.subheader("Config")
-    cfg.NUM_RESULTS = st.number_input("NUM_RESULTS", min_value=1, max_value=10, value=int(cfg.NUM_RESULTS))
-    cfg.MAX_AGENT_ITERATIONS = st.number_input("MAX_ITERS", min_value=1, max_value=5, value=int(cfg.MAX_AGENT_ITERATIONS))
-    cfg.DEVICE = st.selectbox("Device", ["cpu", "cuda"], index=0)
+    with st.expander("Retrieval settings"):
+        cfg.NUM_RESULTS = st.number_input("Chunks per query", min_value=1, max_value=10, value=int(cfg.NUM_RESULTS))
+        cfg.MAX_AGENT_ITERATIONS = st.number_input("Max query retries", min_value=1, max_value=5, value=int(cfg.MAX_AGENT_ITERATIONS))
+        cfg.DEVICE = st.selectbox("Device", ["cpu", "cuda"], index=0)
+
+# ── Brand header ──────────────────────────────────────────────────────────────
+st.markdown(
+    """
+    <p class="brand-title">Invoice Analyst</p>
+    <p class="brand-tagline">offline RAG for PDFs · Gemini vision for images · structured extraction & comparison</p>
+    <hr class="brand-rule" />
+    """,
+    unsafe_allow_html=True,
+)
 
 # ── Tabs (always rendered) ────────────────────────────────────────────────────
 qa_tab, extract_tab, compare_tab = st.tabs(["Q&A", "Extract", "Compare"])
 
-# ── Invoice selector (inside main area, below tabs heading) ──────────────────
 invoices = st.session_state["invoices"]
 
 # ── Q&A Tab ───────────────────────────────────────────────────────────────────
 with qa_tab:
     if not invoices:
-        st.info("Upload an invoice in the sidebar to get started.")
+        _empty_state()
     else:
         invoice_names = {k: v["name"] for k, v in invoices.items()}
         selected_key = st.selectbox(
@@ -185,7 +353,7 @@ with qa_tab:
 # ── Extract Tab ───────────────────────────────────────────────────────────────
 with extract_tab:
     if not invoices:
-        st.info("Upload an invoice in the sidebar to get started.")
+        _empty_state()
     else:
         invoice_names = {k: v["name"] for k, v in invoices.items()}
         selected_key_ext = st.selectbox(
@@ -213,11 +381,17 @@ with extract_tab:
 
         cached = invoices[selected_key_ext].get("schema_cache")
         if cached:
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Total", f"{cached.total_amount:,.2f}" if cached.total_amount is not None else "—")
+            m2.metric("Vendor", cached.vendor_name or "—")
+            m3.metric("Invoice #", cached.invoice_number or "—")
+            m4.metric("Date", cached.invoice_date or "—")
+
             header_df, items_df = _schema_to_dfs(cached)
-            st.subheader("Header Fields")
+            st.subheader("Header fields")
             st.dataframe(header_df, use_container_width=True, hide_index=True)
             if not items_df.empty:
-                st.subheader("Line Items")
+                st.subheader("Line items")
                 st.dataframe(items_df, use_container_width=True, hide_index=True)
             col1, col2 = st.columns(2)
             col1.download_button(
@@ -237,7 +411,17 @@ with extract_tab:
 with compare_tab:
     pdf_invoices = {k: v for k, v in invoices.items() if v["type"] == "pdf"}
     if len(pdf_invoices) < 2:
-        st.info("Load at least 2 PDF invoices to compare.")
+        st.markdown(
+            """
+            <div class="empty-state">
+              <h3>Comparison needs two PDFs</h3>
+              <p>Load at least two PDF invoices in the sidebar, then pick the ones
+              to put side by side. Discrepancies in vendor, totals and dates are
+              flagged automatically.</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
     else:
         selected_for_compare = []
         st.markdown("Select invoices to compare:")
@@ -267,7 +451,7 @@ with compare_tab:
             discrepancies = result["discrepancies"]
 
             if table:
-                st.subheader("Side-by-Side Comparison")
+                st.subheader("Side-by-side comparison")
                 rows = []
                 for field, values in table.items():
                     row = {"Field": field, **values}
@@ -279,7 +463,7 @@ with compare_tab:
                     styles = pd.DataFrame("", index=df.index, columns=df.columns)
                     for field in disc_fields:
                         if field in styles.index:
-                            styles.loc[field] = "background-color: #ffcccc"
+                            styles.loc[field] = "background-color: #F3E3D8"
                     return styles
 
                 st.dataframe(compare_df.style.apply(highlight_discrepancies, axis=None), use_container_width=True)
