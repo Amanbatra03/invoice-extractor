@@ -43,29 +43,29 @@ h1, h2, h3, [data-testid="stMetricValue"] {
     font-weight: 600;
     letter-spacing: -0.02em;
     margin: 0;
-    color: #23211C;
+    color: #3D3929;
 }
 .stMarkdown .brand-tagline {
-    color: #6E6A5E;
+    color: #6E675C;
     font-size: 0.92rem;
     margin: 0.15rem 0 0 0;
 }
 .brand-rule {
     border: none;
-    border-top: 1px solid #E7E4DA;
+    border-top: 1px solid #E5E1D5;
     margin: 0.9rem 0 0.4rem 0;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background: #F4F1EA;
-    border-right: 1px solid #E7E4DA;
+    background: #F0EEE6;
+    border-right: 1px solid #E5E1D5;
 }
 .step-label {
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.08em;
-    color: #1F5F45;
+    color: #C15F3C;
     margin-bottom: 0;
 }
 
@@ -78,13 +78,13 @@ h1, h2, h3, [data-testid="stMetricValue"] {
 }
 .stButton > button:hover, .stDownloadButton > button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(31, 95, 69, 0.16);
+    box-shadow: 0 4px 14px rgba(193, 95, 60, 0.18);
 }
 .stButton > button:active, .stDownloadButton > button:active {
     transform: scale(0.98);
 }
 .stButton > button:focus-visible, .stDownloadButton > button:focus-visible {
-    outline: 2px solid #1F5F45;
+    outline: 2px solid #C15F3C;
     outline-offset: 2px;
 }
 
@@ -105,15 +105,15 @@ button[data-baseweb="tab"] {
     padding: 0.1rem 0.4rem;
     margin-left: 0.45rem;
     border-radius: 4px;
-    background: #E4EFE8;
-    color: #1F5F45;
+    background: #F3E0D5;
+    color: #9C4B26;
     vertical-align: middle;
 }
-.inv-badge.image { background: #EFE9DC; color: #7A5E2A; }
+.inv-badge.image { background: #EDE8DC; color: #7A6A4A; }
 
 /* Empty state */
 .empty-state {
-    background: #F2EFE8;
+    background: #F0EEE6;
     border-radius: 14px;
     padding: 2.2rem 2.4rem;
     margin-top: 0.8rem;
@@ -123,21 +123,21 @@ button[data-baseweb="tab"] {
     font-size: 1.25rem;
 }
 .empty-state p {
-    color: #6E6A5E;
+    color: #6E675C;
     margin: 0.2rem 0;
     max-width: 38rem;
 }
 .empty-state .kbd {
-    background: #E7E4DA;
+    background: #E5E1D5;
     border-radius: 5px;
     padding: 0.05rem 0.45rem;
     font-size: 0.85em;
-    color: #23211C;
+    color: #3D3929;
 }
 
 /* Metric cards */
 [data-testid="stMetric"] {
-    background: #F2EFE8;
+    background: #F0EEE6;
     border-radius: 14px;
     padding: 0.9rem 1.1rem;
 }
