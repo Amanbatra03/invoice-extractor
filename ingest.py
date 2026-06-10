@@ -1,5 +1,6 @@
 import hashlib
 import json
+import shutil
 from pathlib import Path
 
 import chromadb
@@ -25,6 +26,11 @@ def ingest_pdf(
 
     if index_path.exists() and not force:
         return sha_key
+
+    # bm25.json is written last, so its absence means any existing vectorstore
+    # dir is a partial/corrupt leftover from an interrupted ingestion — start fresh
+    if vectorstore_dir.exists():
+        shutil.rmtree(vectorstore_dir, ignore_errors=True)
 
     # Copy PDF to data dir
     dest_dir = base_dir / "data" / sha_key
