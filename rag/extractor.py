@@ -1,5 +1,5 @@
 from rag.hybrid_retriever import HybridRetriever
-from rag.utils import extract_json_from_text
+from rag.utils import ExtractionError, extract_json_from_text
 from models.invoice import InvoiceSchema
 
 _EXTRACTION_PROMPT = """You are an invoice data extractor. Extract all fields from the invoice context below.
@@ -20,10 +20,6 @@ Return ONLY a valid JSON object with these exact keys (use null for missing valu
 
 Invoice context:
 {context}"""
-
-
-class ExtractionError(RuntimeError):
-    """The LLM did not produce a parseable, schema-valid extraction."""
 
 
 def extract_invoice(
