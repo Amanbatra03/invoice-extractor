@@ -43,29 +43,29 @@ h1, h2, h3, [data-testid="stMetricValue"] {
     font-weight: 600;
     letter-spacing: -0.02em;
     margin: 0;
-    color: #3D3929;
+    color: #ECEAE4;
 }
 .stMarkdown .brand-tagline {
-    color: #76736A;
+    color: #A8A599;
     font-size: 0.92rem;
     margin: 0.15rem 0 0 0;
 }
 .brand-rule {
     border: none;
-    border-top: 1px solid #DCDAD2;
+    border-top: 1px solid #3E3D39;
     margin: 0.9rem 0 0.4rem 0;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background: #EBEAE4;
-    border-right: 1px solid #DCDAD2;
+    background: #1F1E1B;
+    border-right: 1px solid #3E3D39;
 }
 .step-label {
     font-size: 0.78rem;
     font-weight: 600;
     letter-spacing: 0.08em;
-    color: #C15F3C;
+    color: #D97757;
     margin-bottom: 0;
 }
 
@@ -78,13 +78,13 @@ h1, h2, h3, [data-testid="stMetricValue"] {
 }
 .stButton > button:hover, .stDownloadButton > button:hover {
     transform: translateY(-1px);
-    box-shadow: 0 4px 14px rgba(193, 95, 60, 0.18);
+    box-shadow: 0 4px 14px rgba(217, 119, 87, 0.25);
 }
 .stButton > button:active, .stDownloadButton > button:active {
     transform: scale(0.98);
 }
 .stButton > button:focus-visible, .stDownloadButton > button:focus-visible {
-    outline: 2px solid #C15F3C;
+    outline: 2px solid #D97757;
     outline-offset: 2px;
 }
 
@@ -105,15 +105,15 @@ button[data-baseweb="tab"] {
     padding: 0.1rem 0.4rem;
     margin-left: 0.45rem;
     border-radius: 4px;
-    background: #F3E0D5;
-    color: #9C4B26;
+    background: #42312A;
+    color: #E0916F;
     vertical-align: middle;
 }
-.inv-badge.image { background: #E3E2DC; color: #66635A; }
+.inv-badge.image { background: #34332F; color: #B5B2A6; }
 
 /* Empty state */
 .empty-state {
-    background: #EBEAE4;
+    background: #30302E;
     border-radius: 14px;
     padding: 2.2rem 2.4rem;
     margin-top: 0.8rem;
@@ -123,21 +123,30 @@ button[data-baseweb="tab"] {
     font-size: 1.25rem;
 }
 .empty-state p {
-    color: #76736A;
+    color: #A8A599;
     margin: 0.2rem 0;
     max-width: 38rem;
 }
 .empty-state .kbd {
-    background: #DCDAD2;
+    background: #3E3D39;
     border-radius: 5px;
     padding: 0.05rem 0.45rem;
     font-size: 0.85em;
-    color: #3D3929;
+    color: #ECEAE4;
+}
+
+/* Sidebar expander — keep it dark like the rest of the sidebar */
+[data-testid="stSidebar"] [data-testid="stExpander"] details {
+    background: #2A2927;
+    border-color: #3E3D39;
+}
+[data-testid="stSidebar"] [data-testid="stExpander"] summary {
+    color: #ECEAE4;
 }
 
 /* Metric cards */
 [data-testid="stMetric"] {
-    background: #EBEAE4;
+    background: #30302E;
     border-radius: 14px;
     padding: 0.9rem 1.1rem;
 }
@@ -463,7 +472,7 @@ with compare_tab:
                     styles = pd.DataFrame("", index=df.index, columns=df.columns)
                     for field in disc_fields:
                         if field in styles.index:
-                            styles.loc[field] = "background-color: #F3E3D8"
+                            styles.loc[field] = "background-color: #5C3A2B"
                     return styles
 
                 st.dataframe(compare_df.style.apply(highlight_discrepancies, axis=None), use_container_width=True)
