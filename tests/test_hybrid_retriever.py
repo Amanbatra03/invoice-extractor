@@ -38,3 +38,14 @@ def test_retrieve_returns_at_most_num_results(invoice_pdf, tmp_path):
     retriever = HybridRetriever(sha_key, base_dir=tmp_path)
     results = retriever.retrieve("invoice number")
     assert len(results) <= 4  # NUM_RESULTS in config
+
+
+@pytest.mark.slow
+def test_all_chunks_returns_full_corpus_in_order(invoice_pdf, tmp_path):
+    sha_key = ingest_pdf(invoice_pdf, base_dir=tmp_path)
+    retriever = HybridRetriever(sha_key, base_dir=tmp_path)
+    chunks = retriever.all_chunks()
+    assert len(chunks) >= 1
+    assert all(set(c) >= {"text", "page"} for c in chunks)
+    full_text = " ".join(c["text"] for c in chunks)
+    assert "212,09" in full_text or "212.09" in full_text  # the gross total survives

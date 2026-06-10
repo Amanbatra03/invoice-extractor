@@ -13,6 +13,7 @@ from rag.agent import AgentState, build_agent
 from rag.comparator import compare_invoices
 from rag.extractor import ExtractionError, extract_invoice
 from rag.hybrid_retriever import HybridRetriever
+from rag.llm import get_ollama_llm
 from rag.utils import load_config
 from rag.validator import has_amounts, validate_invoice
 from store import discover_invoices, delete_invoice
@@ -381,7 +382,7 @@ with extract_tab:
             try:
                 if selected_ext["type"] == "pdf":
                     retriever = HybridRetriever(selected_ext["sha_key"], base_dir=BASE_DIR)
-                    llm = _get_ollama_llm()
+                    llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema())
                     with st.spinner("Extracting structured fields…"):
                         schema = extract_invoice(retriever, llm)
                 else:
@@ -463,7 +464,7 @@ with compare_tab:
                 if schema is None:
                     try:
                         retriever = HybridRetriever(inv["sha_key"], base_dir=BASE_DIR)
-                        llm = _get_ollama_llm()
+                        llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema())
                         with st.spinner(f"Extracting {inv['name']}…"):
                             schema = extract_invoice(retriever, llm)
                         invoices[key]["schema_cache"] = schema

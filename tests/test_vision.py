@@ -91,3 +91,16 @@ def test_extract_invoice_gemini_raises_on_bad_response(tmp_path):
         mock_val.return_value = MagicMock()
         with pytest.raises(ExtractionError):
             extract_invoice_gemini(fake_image)
+
+
+def test_extract_invoice_gemini_uses_response_schema(tmp_path):
+    fake_image = tmp_path / "test.jpg"
+    fake_image.write_bytes(b"")
+    mock_client = _make_mock_client('{"vendor_name": "Test Corp", "line_items": []}')
+
+    with patch("vision.gemini._get_client", return_value=mock_client), \
+         patch("vision.gemini._validate_image", return_value=MagicMock()):
+        extract_invoice_gemini(fake_image)
+
+    kwargs = mock_client.models.generate_content.call_args.kwargs
+    assert kwargs.get("config", {}).get("response_mime_type") == "application/json"
