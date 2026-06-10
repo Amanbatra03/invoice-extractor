@@ -1,8 +1,8 @@
-import pickle
+import json
 from pathlib import Path
 
 import chromadb
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from rank_bm25 import BM25Okapi
 
 from rag.utils import load_config
 
@@ -17,15 +17,15 @@ class HybridRetriever:
         self._num_results = cfg.NUM_RESULTS
         vectorstore_dir = base_dir / "vectorstore" / sha_key
 
-        # Load BM25 index
-        bm25_path = vectorstore_dir / "bm25.pkl"
-        with open(bm25_path, "rb") as f:
-            data = pickle.load(f)
-        self._bm25 = data["bm25"]
+        # Load BM25 corpus from JSON and rebuild the index
+        index_path = vectorstore_dir / "bm25.json"
+        data = json.loads(index_path.read_text(encoding="utf8"))
         self._texts = data["texts"]
-        self._chunks = data["chunks"]
+        self._pages = data["pages"]
+        self._bm25 = BM25Okapi([t.split() for t in self._texts])
 
-        # Load embeddings model for query encoding
+        # Load embeddings model for query encoding (heavy import deferred)
+        from langchain_community.embeddings import HuggingFaceEmbeddings
         self._embeddings = HuggingFaceEmbeddings(
             model_name=cfg.EMBEDDINGS,
             model_kwargs={"device": cfg.DEVICE},
@@ -47,22 +47,16 @@ class HybridRetriever:
         )
         bm25_ranks = {idx: rank for rank, idx in enumerate(sorted_bm25_idx[:n])}
 
-        # Dense retrieval via ChromaDB
+        # Dense retrieval via ChromaDB; ids are "chunk_<i>" so they map back to corpus indices
         query_embedding = self._embeddings.embed_query(query)
         dense_results = self._collection.query(
             query_embeddings=[query_embedding],
             n_results=n,
-            include=["documents", "metadatas"],
         )
-        dense_docs = dense_results["documents"][0]  # list of text strings
-        dense_metas = dense_results["metadatas"][0]  # list of metadata dicts
-
-        dense_ranks: dict[int, int] = {}
-        for rank, doc_text in enumerate(dense_docs):
-            for i, text in enumerate(self._texts):
-                if doc_text == text and i not in dense_ranks:
-                    dense_ranks[i] = rank
-                    break
+        dense_ranks = {
+            int(chunk_id.rsplit("_", 1)[1]): rank
+            for rank, chunk_id in enumerate(dense_results["ids"][0])
+        }
 
         # RRF fusion
         all_indices = set(bm25_ranks.keys()) | set(dense_ranks.keys())
@@ -72,10 +66,9 @@ class HybridRetriever:
                 bm25_ranks.get(idx, n + 60),
                 dense_ranks.get(idx, n + 60),
             )
-            chunk = self._chunks[idx]
             fused.append({
                 "text": self._texts[idx],
-                "page": chunk.metadata.get("page", "?"),
+                "page": self._pages[idx],
                 "score": score,
             })
 

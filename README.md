@@ -10,7 +10,7 @@ A unified analyst-grade invoice extraction tool with a dual-mode pipeline: a **f
 - **Hybrid Retrieval** — BM25 (sparse) + ChromaDB (dense) fused via Reciprocal Rank Fusion (RRF)
 - **Structured Extraction** — Pydantic v2 schema extracts vendor, invoice #, dates, totals, line items; exportable as JSON or CSV
 - **Multi-Invoice Comparison** — side-by-side field diff with automatic discrepancy detection (vendor mismatch, total >5%, date gap >30 days)
-- **Gemini Vision** — Google Gemini 1.5 Flash for image invoices (JPG/PNG)
+- **Gemini Vision** — Google Gemini 2.0 Flash for image invoices (JPG/PNG)
 - **Fully Offline PDF Path** — Ollama local LLM + local embeddings, no API key required for PDF mode
 - **Per-Invoice Dedup** — SHA-256 content hashing, re-upload skips re-ingestion
 
@@ -34,7 +34,7 @@ app.py (Streamlit)
          │
     ingest.py (SHA256 keying, per-invoice vectorstore)
 
-    Image path → vision/gemini.py (Gemini 1.5 Flash)
+    Image path → vision/gemini.py (Gemini 2.0 Flash)
 ```
 
 ### LangGraph Agent Flow
@@ -143,8 +143,8 @@ invoice-extractor/
 │   ├── comparator.py       # Multi-invoice comparison
 │   └── utils.py            # Shared: load_config, extract_json_from_text
 ├── vision/
-│   └── gemini.py           # Gemini 1.5 Flash for image invoices
-└── tests/                  # 31 tests (TDD, pytest)
+│   └── gemini.py           # Gemini 2.0 Flash for image invoices
+└── tests/                  # 40 tests (TDD, pytest)
 ```
 
 ---
@@ -156,7 +156,7 @@ invoice-extractor/
 | UI | Streamlit |
 | Agent orchestration | LangGraph |
 | LLM (local) | Ollama (`llama3.2:3b`) |
-| LLM (vision) | Google Gemini 1.5 Flash |
+| LLM (vision) | Google Gemini 2.0 Flash |
 | Embeddings | sentence-transformers/all-MiniLM-L6-v2 |
 | Vector store | ChromaDB (PersistentClient) |
 | Sparse retrieval | rank-bm25 (BM25Okapi) |

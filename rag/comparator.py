@@ -31,11 +31,11 @@ def compare_invoices(named_schemas: list[tuple[str, InvoiceSchema]]) -> dict:
 
     discrepancies: list[dict] = []
 
-    vendors = {v for v in table["vendor_name"].values() if v}
-    if len(vendors) > 1:
+    vendors = [v.strip() for v in table["vendor_name"].values() if v and v.strip()]
+    if len({v.lower() for v in vendors}) > 1:
         discrepancies.append({
             "field": "vendor_name",
-            "detail": f"Different vendors: {', '.join(vendors)}",
+            "detail": f"Different vendors: {', '.join(sorted(set(vendors)))}",
         })
 
     totals = [(name, val) for name, val in table["total_amount"].items() if val is not None]

@@ -71,6 +71,15 @@ def test_extract_invoice_gemini_returns_schema(tmp_path):
     assert result.total_amount == 99.0
 
 
+def test_extract_invoice_gemini_raises_without_api_key(tmp_path, monkeypatch):
+    fake_image = tmp_path / "test.jpg"
+    fake_image.write_bytes(b"")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    with pytest.raises(EnvironmentError, match="GOOGLE_API_KEY"):
+        extract_invoice_gemini(fake_image)
+
+
 def test_extract_invoice_gemini_returns_empty_on_bad_response(tmp_path):
     fake_image = tmp_path / "test.jpg"
     fake_image.write_bytes(b"")
