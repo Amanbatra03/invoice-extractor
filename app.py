@@ -46,20 +46,20 @@ h1, h2, h3, [data-testid="stMetricValue"] {
     color: #3D3929;
 }
 .stMarkdown .brand-tagline {
-    color: #6E675C;
+    color: #76736A;
     font-size: 0.92rem;
     margin: 0.15rem 0 0 0;
 }
 .brand-rule {
     border: none;
-    border-top: 1px solid #E5E1D5;
+    border-top: 1px solid #DCDAD2;
     margin: 0.9rem 0 0.4rem 0;
 }
 
 /* Sidebar */
 [data-testid="stSidebar"] {
-    background: #F0EEE6;
-    border-right: 1px solid #E5E1D5;
+    background: #EBEAE4;
+    border-right: 1px solid #DCDAD2;
 }
 .step-label {
     font-size: 0.78rem;
@@ -109,11 +109,11 @@ button[data-baseweb="tab"] {
     color: #9C4B26;
     vertical-align: middle;
 }
-.inv-badge.image { background: #EDE8DC; color: #7A6A4A; }
+.inv-badge.image { background: #E3E2DC; color: #66635A; }
 
 /* Empty state */
 .empty-state {
-    background: #F0EEE6;
+    background: #EBEAE4;
     border-radius: 14px;
     padding: 2.2rem 2.4rem;
     margin-top: 0.8rem;
@@ -123,12 +123,12 @@ button[data-baseweb="tab"] {
     font-size: 1.25rem;
 }
 .empty-state p {
-    color: #6E675C;
+    color: #76736A;
     margin: 0.2rem 0;
     max-width: 38rem;
 }
 .empty-state .kbd {
-    background: #E5E1D5;
+    background: #DCDAD2;
     border-radius: 5px;
     padding: 0.05rem 0.45rem;
     font-size: 0.85em;
@@ -137,7 +137,7 @@ button[data-baseweb="tab"] {
 
 /* Metric cards */
 [data-testid="stMetric"] {
-    background: #F0EEE6;
+    background: #EBEAE4;
     border-radius: 14px;
     padding: 0.9rem 1.1rem;
 }
