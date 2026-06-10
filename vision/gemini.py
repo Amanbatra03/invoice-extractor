@@ -6,7 +6,7 @@ from google import genai
 from PIL import Image
 
 from models.invoice import InvoiceSchema
-from rag.extractor import ExtractionError
+from rag.utils import ExtractionError
 from rag.utils import extract_json_from_text
 
 load_dotenv()

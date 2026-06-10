@@ -4,6 +4,10 @@ from pathlib import Path
 import box
 import yaml
 
+
+class ExtractionError(RuntimeError):
+    """The LLM did not produce a parseable, schema-valid extraction."""
+
 _DEFAULT_CONFIG_PATH = Path(__file__).parent.parent / "config.yml"
 
 

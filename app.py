@@ -11,10 +11,10 @@ from ingest import ingest_pdf
 from models.invoice import InvoiceSchema
 from rag.agent import AgentState, build_agent
 from rag.comparator import compare_invoices
-from rag.extractor import extract_invoice
+from rag.extractor import ExtractionError, extract_invoice
 from rag.hybrid_retriever import HybridRetriever
 from rag.utils import load_config
-from rag.validator import validate_invoice
+from rag.validator import has_amounts, validate_invoice
 from store import discover_invoices, delete_invoice
 from vision.gemini import ask_invoice, extract_invoice_gemini
 
@@ -378,7 +378,6 @@ with extract_tab:
         selected_ext = invoices[selected_key_ext]
 
         if st.button("Extract All Fields", type="primary", key="extract_btn"):
-            from rag.extractor import ExtractionError
             try:
                 if selected_ext["type"] == "pdf":
                     retriever = HybridRetriever(selected_ext["sha_key"], base_dir=BASE_DIR)
@@ -404,7 +403,6 @@ with extract_tab:
             m3.metric("Invoice #", cached.invoice_number or "—")
             m4.metric("Date", cached.invoice_date or "—")
 
-            from rag.validator import has_amounts
             checks = validate_invoice(cached)
             if checks:
                 st.subheader("Validation checks")
@@ -458,7 +456,6 @@ with compare_tab:
                 selected_for_compare.append(key)
 
         if len(selected_for_compare) >= 2 and st.button("Compare Selected", type="primary"):
-            from rag.extractor import ExtractionError
             named_schemas: list[tuple[str, InvoiceSchema]] = []
             for key in selected_for_compare:
                 inv = invoices[key]
@@ -470,7 +467,7 @@ with compare_tab:
                         with st.spinner(f"Extracting {inv['name']}…"):
                             schema = extract_invoice(retriever, llm)
                         invoices[key]["schema_cache"] = schema
-                    except (ExtractionError, Exception) as e:
+                    except Exception as e:
                         st.error(f"{inv['name']} excluded from comparison — extraction failed: {e}")
                         continue
                 named_schemas.append((inv["name"], schema))
