@@ -38,7 +38,7 @@ def _get_model():
     if not api_key:
         raise EnvironmentError("GOOGLE_API_KEY not set. Add it to your .env file.")
     genai.configure(api_key=api_key)
-    return genai.GenerativeModel("gemini-1.5-flash")
+    return genai.GenerativeModel("gemini-2.0-flash")
 
 
 def _validate_image(image_path: Path) -> Image.Image:
@@ -60,9 +60,11 @@ def ask_invoice(image_path: Path, question: str) -> str:
 
 
 def extract_invoice_gemini(image_path: Path) -> InvoiceSchema:
+    # Config/input errors must propagate so the UI can surface them;
+    # only model-output problems degrade to an empty schema.
+    model = _get_model()
+    img = _validate_image(image_path)
     try:
-        model = _get_model()
-        img = _validate_image(image_path)
         response = model.generate_content([_EXTRACTION_PROMPT, img])
         if response.prompt_feedback and response.prompt_feedback.block_reason:
             return InvoiceSchema()

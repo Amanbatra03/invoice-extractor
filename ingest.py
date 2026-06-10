@@ -1,12 +1,8 @@
 import hashlib
-import pickle
+import json
 from pathlib import Path
 
 import chromadb
-from langchain_community.document_loaders import PyPDFLoader
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from rank_bm25 import BM25Okapi
 
 from rag.utils import load_config
 
@@ -15,22 +11,32 @@ def _sha_key(pdf_path: Path) -> str:
     return hashlib.sha256(pdf_path.read_bytes()).hexdigest()[:8]
 
 
-def ingest_pdf(pdf_path: Path, base_dir: Path = Path("."), force: bool = False) -> str:
+def ingest_pdf(
+    pdf_path: Path,
+    base_dir: Path = Path("."),
+    force: bool = False,
+    original_name: str | None = None,
+) -> str:
     cfg = load_config()
     sha_key = _sha_key(pdf_path)
 
     vectorstore_dir = base_dir / "vectorstore" / sha_key
-    bm25_path = vectorstore_dir / "bm25.pkl"
+    index_path = vectorstore_dir / "bm25.json"
 
-    if bm25_path.exists() and not force:
+    if index_path.exists() and not force:
         return sha_key
 
     # Copy PDF to data dir
     dest_dir = base_dir / "data" / sha_key
     dest_dir.mkdir(parents=True, exist_ok=True)
-    dest = dest_dir / pdf_path.name
+    dest = dest_dir / (original_name or pdf_path.name)
     if not dest.exists():
         dest.write_bytes(pdf_path.read_bytes())
+
+    # Heavy imports (torch, transformers) deferred so importing this module stays cheap
+    from langchain_community.document_loaders import PyPDFLoader
+    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_text_splitters import RecursiveCharacterTextSplitter
 
     # Load and split PDF
     loader = PyPDFLoader(str(pdf_path))
@@ -66,10 +72,11 @@ def ingest_pdf(pdf_path: Path, base_dir: Path = Path("."), force: bool = False) 
         ids=ids,
     )
 
-    # Build and persist BM25 index
-    tokenized = [t.split() for t in texts]
-    bm25 = BM25Okapi(tokenized)
-    with open(bm25_path, "wb") as f:
-        pickle.dump({"bm25": bm25, "texts": texts, "chunks": chunks}, f)
+    # Persist the BM25 corpus as JSON (rebuilt on load — avoids unpickling untrusted data)
+    payload = {
+        "texts": texts,
+        "pages": [c.metadata.get("page", "?") for c in chunks],
+    }
+    index_path.write_text(json.dumps(payload), encoding="utf8")
 
     return sha_key

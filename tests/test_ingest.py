@@ -1,4 +1,4 @@
-import pickle
+import json
 import pytest
 from pathlib import Path
 from ingest import ingest_pdf
@@ -27,13 +27,13 @@ def test_ingest_creates_chromadb(invoice_pdf, tmp_path):
 @pytest.mark.slow
 def test_ingest_creates_bm25_index(invoice_pdf, tmp_path):
     sha_key = ingest_pdf(invoice_pdf, base_dir=tmp_path)
-    bm25_path = tmp_path / "vectorstore" / sha_key / "bm25.pkl"
-    assert bm25_path.exists()
-    with open(bm25_path, "rb") as f:
-        data = pickle.load(f)
-    assert "bm25" in data
+    index_path = tmp_path / "vectorstore" / sha_key / "bm25.json"
+    assert index_path.exists()
+    data = json.loads(index_path.read_text(encoding="utf8"))
     assert "texts" in data
+    assert "pages" in data
     assert len(data["texts"]) > 0
+    assert len(data["pages"]) == len(data["texts"])
 
 
 @pytest.mark.slow

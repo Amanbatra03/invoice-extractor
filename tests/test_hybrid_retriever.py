@@ -1,7 +1,5 @@
-import pickle
 import pytest
 from pathlib import Path
-from unittest.mock import MagicMock
 
 from rag.hybrid_retriever import rrf_score, HybridRetriever
 from ingest import ingest_pdf

@@ -21,6 +21,14 @@ def test_compare_different_vendors_flagged():
     assert "vendor_name" in fields
 
 
+def test_compare_vendor_case_difference_not_flagged():
+    a = _schema(vendor_name="ACME Corp")
+    b = _schema(vendor_name="acme corp ")
+    result = compare_invoices([("a", a), ("b", b)])
+    fields = [d["field"] for d in result["discrepancies"]]
+    assert "vendor_name" not in fields
+
+
 def test_compare_total_mismatch_over_5pct_flagged():
     a = _schema(total_amount=100.0)
     b = _schema(total_amount=110.0)

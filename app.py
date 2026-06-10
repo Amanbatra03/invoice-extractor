@@ -1,4 +1,4 @@
-import json
+import re
 import tempfile
 from pathlib import Path
 
@@ -25,6 +25,12 @@ st.set_page_config(page_title="Invoice Analyst", page_icon="🧾", layout="wide"
 # Session state
 if "invoices" not in st.session_state:
     st.session_state["invoices"] = {}
+
+
+def _safe_filename(name: str, suffix: str) -> str:
+    # Keep only the basename, then whitelist filename characters
+    cleaned = re.sub(r"[^\w.\- ]", "_", Path(name).name).strip().strip(".")
+    return cleaned or f"invoice{suffix}"
 
 
 def _get_ollama_llm():
@@ -61,7 +67,10 @@ with st.sidebar:
         if suffix == ".pdf":
             with st.spinner(f"Ingesting {uploaded.name}…"):
                 try:
-                    sha_key = ingest_pdf(tmp_path, base_dir=BASE_DIR)
+                    sha_key = ingest_pdf(
+                        tmp_path, base_dir=BASE_DIR,
+                        original_name=_safe_filename(uploaded.name, suffix),
+                    )
                     st.session_state["invoices"][sha_key] = {
                         "name": uploaded.name,
                         "type": "pdf",
@@ -74,7 +83,7 @@ with st.sidebar:
         else:
             img_dest = BASE_DIR / "data" / "images"
             img_dest.mkdir(parents=True, exist_ok=True)
-            safe_name = Path(uploaded.name).name  # strip any directory components
+            safe_name = _safe_filename(uploaded.name, suffix)
             dest = img_dest / safe_name
             dest.write_bytes(uploaded.getvalue())
             img_key = f"img_{safe_name}"
@@ -168,7 +177,7 @@ with qa_tab:
                         answer = ask_invoice(selected["path"], question)
                     st.subheader("Answer")
                     st.success(answer)
-                except EnvironmentError as e:
+                except (EnvironmentError, ValueError) as e:
                     st.error(str(e))
                 except RuntimeError as e:
                     st.warning(str(e))
@@ -199,7 +208,7 @@ with extract_tab:
                     with st.spinner("Extracting via Gemini…"):
                         schema = extract_invoice_gemini(selected_ext["path"])
                     invoices[selected_key_ext]["schema_cache"] = schema
-                except EnvironmentError as e:
+                except (EnvironmentError, ValueError) as e:
                     st.error(str(e))
 
         cached = invoices[selected_key_ext].get("schema_cache")
