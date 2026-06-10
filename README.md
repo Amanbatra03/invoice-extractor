@@ -93,6 +93,16 @@ streamlit run app.py
 
 Open `http://localhost:8501`.
 
+### Run with Docker
+
+```bash
+docker compose up -d --build
+docker compose exec ollama ollama pull llama3.2:3b   # first time only
+```
+
+Open `http://localhost:8501`. Set `GOOGLE_API_KEY` / `APP_PASSWORD` in your shell
+or a `.env` file next to `docker-compose.yml` to pass them in.
+
 ---
 
 ## Usage
