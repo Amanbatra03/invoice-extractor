@@ -25,7 +25,7 @@ class HybridRetriever:
         self._bm25 = BM25Okapi([t.split() for t in self._texts])
 
         # Load embeddings model for query encoding (heavy import deferred)
-        from langchain_community.embeddings import HuggingFaceEmbeddings
+        from langchain_huggingface import HuggingFaceEmbeddings
         self._embeddings = HuggingFaceEmbeddings(
             model_name=cfg.EMBEDDINGS,
             model_kwargs={"device": cfg.DEVICE},

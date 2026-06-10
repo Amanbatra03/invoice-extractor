@@ -34,19 +34,21 @@ def ingest_pdf(
         dest.write_bytes(pdf_path.read_bytes())
 
     # Heavy imports (torch, transformers) deferred so importing this module stays cheap
-    from langchain_community.document_loaders import PyPDFLoader
-    from langchain_community.embeddings import HuggingFaceEmbeddings
+    from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_text_splitters import RecursiveCharacterTextSplitter
+    from pypdf import PdfReader
 
-    # Load and split PDF
-    loader = PyPDFLoader(str(pdf_path))
-    docs = loader.load()
-
+    # Load PDF and split per page (page numbers are 1-based for display)
+    reader = PdfReader(str(pdf_path))
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=cfg.CHUNK_SIZE, chunk_overlap=cfg.CHUNK_OVERLAP
     )
-    chunks = splitter.split_documents(docs)
-    texts = [c.page_content for c in chunks]
+    texts: list[str] = []
+    pages: list[int] = []
+    for page_num, page in enumerate(reader.pages, start=1):
+        for piece in splitter.split_text(page.extract_text() or ""):
+            texts.append(piece)
+            pages.append(page_num)
 
     # Build embeddings
     embeddings = HuggingFaceEmbeddings(
@@ -63,8 +65,8 @@ def ingest_pdf(
         metadata={"hnsw:space": cfg.VECTOR_SPACE},
     )
     embeds = embeddings.embed_documents(texts)
-    metadatas = [c.metadata for c in chunks]
-    ids = [f"chunk_{i}" for i in range(len(chunks))]
+    metadatas = [{"page": p} for p in pages]
+    ids = [f"chunk_{i}" for i in range(len(texts))]
     collection.add(
         documents=texts,
         embeddings=embeds,
@@ -73,10 +75,7 @@ def ingest_pdf(
     )
 
     # Persist the BM25 corpus as JSON (rebuilt on load — avoids unpickling untrusted data)
-    payload = {
-        "texts": texts,
-        "pages": [c.metadata.get("page", "?") for c in chunks],
-    }
+    payload = {"texts": texts, "pages": pages}
     index_path.write_text(json.dumps(payload), encoding="utf8")
 
     return sha_key
