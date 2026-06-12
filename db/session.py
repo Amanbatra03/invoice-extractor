@@ -1,31 +1,25 @@
 import os
+import functools
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
-_engine = None
-_session_factory = None
 
-
+@functools.lru_cache(maxsize=1)
 def get_engine():
-    global _engine
-    if _engine is None:
-        database_url = os.environ.get("DATABASE_URL", "")
-        _engine = create_async_engine(
-            database_url,
-            pool_size=10,
-            max_overflow=20,
-            pool_pre_ping=True,
-        )
-    return _engine
+    database_url = os.environ.get("DATABASE_URL", "")
+    return create_async_engine(
+        database_url,
+        pool_size=10,
+        max_overflow=20,
+        pool_pre_ping=True,
+    )
 
 
+@functools.lru_cache(maxsize=1)
 def get_session_factory() -> async_sessionmaker[AsyncSession]:
-    global _session_factory
-    if _session_factory is None:
-        _session_factory = async_sessionmaker(
-            get_engine(), expire_on_commit=False, class_=AsyncSession
-        )
-    return _session_factory
+    return async_sessionmaker(
+        get_engine(), expire_on_commit=False, class_=AsyncSession
+    )
 
 
 async def get_db():

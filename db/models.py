@@ -71,8 +71,8 @@ class Invoice(Base):
 class InvoiceChunk(Base):
     __tablename__ = "invoice_chunks"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     chunk_text = Column(Text, nullable=False)
     page_num = Column(Integer, nullable=False)
     embedding = Column(Vector(768), nullable=True)
@@ -84,7 +84,7 @@ class Extraction(Base):
     __tablename__ = "extractions"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     invoice_id = Column(UUID(as_uuid=True), ForeignKey("invoices.id", ondelete="CASCADE"), nullable=False, unique=True)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     schema_json = Column(JSONB, nullable=False)
     model_used = Column(String(100), nullable=False)
     validated = Column(Boolean, nullable=False, server_default="false")
@@ -95,7 +95,7 @@ class Extraction(Base):
 class Job(Base):
     __tablename__ = "jobs"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     type = Column(String(50), nullable=False)
     status = Column(String(20), nullable=False, server_default="queued")
     payload = Column(JSONB, nullable=True)
@@ -108,7 +108,7 @@ class Job(Base):
 class Webhook(Base):
     __tablename__ = "webhooks"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
     url = Column(Text, nullable=False)
     events = Column(ARRAY(String), nullable=False)
     secret = Column(Text, nullable=False)
@@ -133,8 +133,8 @@ class WebhookDelivery(Base):
 class AuditLog(Base):
     __tablename__ = "audit_log"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    user_id = Column(UUID(as_uuid=True), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     action = Column(String(100), nullable=False)
     resource_type = Column(String(50), nullable=True)
     resource_id = Column(UUID(as_uuid=True), nullable=True)
@@ -145,8 +145,8 @@ class AuditLog(Base):
 class LlmUsage(Base):
     __tablename__ = "llm_usage"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
-    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False)
-    invoice_id = Column(UUID(as_uuid=True), nullable=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    invoice_id = Column(UUID(as_uuid=True), nullable=True, index=True)
     model = Column(String(100), nullable=False)
     agent = Column(String(50), nullable=False)
     input_tokens = Column(Integer, nullable=False, server_default="0")
