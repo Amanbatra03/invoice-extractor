@@ -1,4 +1,3 @@
-import os
 import functools
 
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
@@ -6,9 +5,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 
 @functools.lru_cache(maxsize=1)
 def get_engine():
-    database_url = os.environ.get("DATABASE_URL", "")
+    from api.config import get_settings
+    settings = get_settings()
     return create_async_engine(
-        database_url,
+        settings.DATABASE_URL,
         pool_size=10,
         max_overflow=20,
         pool_pre_ping=True,
