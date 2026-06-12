@@ -11,10 +11,14 @@ log = structlog.get_logger()
 
 class OllamaGemmaProvider:
     def __init__(self, base_url: str | None = None, model: str | None = None):
-        from api.config import get_settings
-        settings = get_settings()
-        self._base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
-        self._model = model or settings.GEMMA_MODEL
+        if base_url is None or model is None:
+            from api.config import get_settings
+            settings = get_settings()
+            self._base_url = (base_url or settings.OLLAMA_BASE_URL).rstrip("/")
+            self._model = model or settings.GEMMA_MODEL
+        else:
+            self._base_url = base_url.rstrip("/")
+            self._model = model
 
     def embed_text(self, texts: list[str]) -> list[list[float]]:
         embeddings = []
