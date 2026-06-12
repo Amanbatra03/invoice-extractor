@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import chromadb
@@ -11,8 +12,12 @@ def rrf_score(rank_bm25: int, rank_dense: int, k: int = 60) -> float:
     return 1 / (k + rank_bm25) + 1 / (k + rank_dense)
 
 
+def _tokenize(text: str) -> list[str]:
+    return re.findall(r"\w+", text.lower())
+
+
 class HybridRetriever:
-    def __init__(self, sha_key: str, base_dir: Path = Path(".")):
+    def __init__(self, sha_key: str, base_dir: Path = Path("."), embeddings=None):
         cfg = load_config()
         self._num_results = cfg.NUM_RESULTS
         vectorstore_dir = base_dir / "vectorstore" / sha_key
@@ -22,15 +27,19 @@ class HybridRetriever:
         data = json.loads(index_path.read_text(encoding="utf8"))
         self._texts = data["texts"]
         self._pages = data["pages"]
-        self._bm25 = BM25Okapi([t.split() for t in self._texts])
+        tokenized = [_tokenize(t) for t in self._texts]
+        self._bm25 = BM25Okapi(tokenized) if tokenized else BM25Okapi([[""]])
 
-        # Load embeddings model for query encoding (heavy import deferred)
-        from langchain_huggingface import HuggingFaceEmbeddings
-        self._embeddings = HuggingFaceEmbeddings(
-            model_name=cfg.EMBEDDINGS,
-            model_kwargs={"device": cfg.DEVICE},
-            encode_kwargs={"normalize_embeddings": cfg.NORMALIZE_EMBEDDINGS},
-        )
+        # Injectable embeddings for app-level caching; load from scratch if not provided
+        if embeddings is not None:
+            self._embeddings = embeddings
+        else:
+            from langchain_huggingface import HuggingFaceEmbeddings
+            self._embeddings = HuggingFaceEmbeddings(
+                model_name=cfg.EMBEDDINGS,
+                model_kwargs={"device": cfg.DEVICE},
+                encode_kwargs={"normalize_embeddings": cfg.NORMALIZE_EMBEDDINGS},
+            )
 
         # Load ChromaDB collection (chromadb >= 0.4 PersistentClient API)
         client = chromadb.PersistentClient(path=str(vectorstore_dir))
@@ -40,7 +49,7 @@ class HybridRetriever:
         n = min(self._num_results * 3, len(self._texts))
 
         # BM25 ranking
-        tokenized_query = query.split()
+        tokenized_query = _tokenize(query)
         bm25_scores = self._bm25.get_scores(tokenized_query)
         sorted_bm25_idx = sorted(
             range(len(bm25_scores)), key=lambda i: bm25_scores[i], reverse=True

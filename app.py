@@ -16,7 +16,7 @@ from rag.hybrid_retriever import HybridRetriever
 from rag.llm import get_ollama_llm
 from rag.utils import load_config
 from rag.validator import has_amounts, validate_invoice
-from store import discover_invoices, delete_invoice
+from store import discover_invoices, delete_invoice, save_extraction, all_extractions_dataframe
 from vision.gemini import ask_invoice, extract_invoice_gemini
 
 load_dotenv()
@@ -177,16 +177,28 @@ def _safe_filename(name: str, suffix: str) -> str:
 
 
 def _get_ollama_llm():
-    from rag.llm import get_ollama_llm
-    return get_ollama_llm(cfg.LLM)
+    return get_ollama_llm(cfg.LLM, num_ctx=int(cfg.NUM_CTX))
+
+
+@st.cache_resource(show_spinner=False)
+def _get_embeddings():
+    from langchain_huggingface import HuggingFaceEmbeddings
+    return HuggingFaceEmbeddings(
+        model_name=cfg.EMBEDDINGS,
+        model_kwargs={"device": cfg.DEVICE},
+        encode_kwargs={"normalize_embeddings": cfg.NORMALIZE_EMBEDDINGS},
+    )
 
 
 def _schema_to_dfs(schema: InvoiceSchema):
     header = {
-        "Field": ["Vendor", "Invoice #", "Date", "Due Date", "Subtotal", "Tax", "Total", "Currency"],
+        "Field": ["Vendor", "Invoice #", "Date", "Due Date", "Subtotal", "Tax", "Total",
+                  "Currency", "PO #", "Payment Terms", "Vendor Tax ID", "Vendor Address", "Bill To"],
         "Value": [
             schema.vendor_name, schema.invoice_number, schema.invoice_date,
-            schema.due_date, schema.subtotal, schema.tax, schema.total_amount, schema.currency,
+            schema.due_date, schema.subtotal, schema.tax, schema.total_amount,
+            schema.currency, schema.po_number, schema.payment_terms,
+            schema.vendor_tax_id, schema.vendor_address, schema.bill_to,
         ],
     }
     line_items = [
@@ -285,6 +297,16 @@ with st.sidebar:
         del st.session_state["invoices"][k]
         st.rerun()
 
+    extracted_invs = {k: v for k, v in st.session_state["invoices"].items() if v.get("schema_cache")}
+    if extracted_invs:
+        st.download_button(
+            "Download all extractions (CSV)",
+            data=all_extractions_dataframe(extracted_invs).to_csv(index=False),
+            file_name="all_invoices.csv",
+            mime="text/csv",
+            use_container_width=True,
+        )
+
     st.divider()
     with st.expander("Retrieval settings"):
         cfg.NUM_RESULTS = st.number_input("Chunks per query", min_value=1, max_value=10, value=int(cfg.NUM_RESULTS))
@@ -323,7 +345,7 @@ with qa_tab:
         if ask_btn and question.strip():
             if selected["type"] == "pdf":
                 try:
-                    retriever = HybridRetriever(selected["sha_key"], base_dir=BASE_DIR)
+                    retriever = HybridRetriever(selected["sha_key"], base_dir=BASE_DIR, embeddings=_get_embeddings())
                     llm = _get_ollama_llm()
                     agent = build_agent(retriever, llm=llm)
                     trace_steps = []
@@ -381,14 +403,15 @@ with extract_tab:
         if st.button("Extract All Fields", type="primary", key="extract_btn"):
             try:
                 if selected_ext["type"] == "pdf":
-                    retriever = HybridRetriever(selected_ext["sha_key"], base_dir=BASE_DIR)
-                    llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema())
+                    retriever = HybridRetriever(selected_ext["sha_key"], base_dir=BASE_DIR, embeddings=_get_embeddings())
+                    llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema(), num_ctx=int(cfg.NUM_CTX))
                     with st.spinner("Extracting structured fields…"):
                         schema = extract_invoice(retriever, llm)
                 else:
                     with st.spinner("Extracting via Gemini…"):
                         schema = extract_invoice_gemini(selected_ext["path"])
                 invoices[selected_key_ext]["schema_cache"] = schema
+                save_extraction(invoices[selected_key_ext], schema, BASE_DIR)
             except ExtractionError as e:
                 st.error(f"Extraction failed — the model did not return usable data. Try again. ({e})")
             except (EnvironmentError, ValueError) as e:
@@ -428,8 +451,10 @@ with extract_tab:
                 mime="application/json",
             )
             col2.download_button(
-                "Download CSV",
-                data=header_df.to_csv(index=False),
+                "Download CSV (incl. line items)",
+                data=all_extractions_dataframe(
+                    {selected_key_ext: invoices[selected_key_ext]}
+                ).to_csv(index=False),
                 file_name=f"{selected_ext['name']}_extracted.csv",
                 mime="text/csv",
             )
@@ -463,11 +488,12 @@ with compare_tab:
                 schema = inv.get("schema_cache")
                 if schema is None:
                     try:
-                        retriever = HybridRetriever(inv["sha_key"], base_dir=BASE_DIR)
-                        llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema())
+                        retriever = HybridRetriever(inv["sha_key"], base_dir=BASE_DIR, embeddings=_get_embeddings())
+                        llm = get_ollama_llm(cfg.LLM, format_schema=InvoiceSchema.model_json_schema(), num_ctx=int(cfg.NUM_CTX))
                         with st.spinner(f"Extracting {inv['name']}…"):
                             schema = extract_invoice(retriever, llm)
                         invoices[key]["schema_cache"] = schema
+                        save_extraction(invoices[key], schema, BASE_DIR)
                     except Exception as e:
                         st.error(f"{inv['name']} excluded from comparison — extraction failed: {e}")
                         continue

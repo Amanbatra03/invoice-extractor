@@ -3,7 +3,7 @@ from models.invoice import InvoiceSchema
 
 _FIELDS = [
     "vendor_name", "invoice_number", "invoice_date", "due_date",
-    "subtotal", "tax", "total_amount", "currency",
+    "subtotal", "tax", "total_amount", "currency", "po_number",
 ]
 
 _DATE_FORMATS = ("%Y-%m-%d", "%d/%m/%Y", "%m/%d/%Y", "%d-%m-%Y")
@@ -38,8 +38,15 @@ def compare_invoices(named_schemas: list[tuple[str, InvoiceSchema]]) -> dict:
             "detail": f"Different vendors: {', '.join(sorted(set(vendors)))}",
         })
 
+    currencies = {c.strip().upper() for c in table["currency"].values() if c and c.strip()}
+    if len(currencies) > 1:
+        discrepancies.append({
+            "field": "currency",
+            "detail": f"Mixed currencies — totals not compared: {', '.join(sorted(currencies))}",
+        })
+
     totals = [(name, val) for name, val in table["total_amount"].items() if val is not None]
-    if len(totals) >= 2:
+    if len(totals) >= 2 and len(currencies) <= 1:
         amounts = [v for _, v in totals]
         min_a, max_a = min(amounts), max(amounts)
         if min_a > 0 and (max_a - min_a) / min_a > 0.05:
