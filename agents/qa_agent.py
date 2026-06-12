@@ -65,6 +65,8 @@ def build_qa_agent(
         return "retry"
 
     async def generate_answer(state: QAState) -> QAState:
+        if not state["chunks"]:
+            return {**state, "answer": "I could not find that information in the invoice."}
         context = "\n\n".join(c["text"] for c in state["chunks"])
         prompt = (
             "Use the following invoice context to answer the question.\n"

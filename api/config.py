@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     CHUNK_SIZE: int = 800
     CHUNK_OVERLAP: int = 80
 
+    # Agent loop limits
+    MAX_AGENT_ITERATIONS: int = 3
+    MAX_CRITIQUE_ITERATIONS: int = 2
+
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.ALLOWED_ORIGINS.split(",") if o.strip()]
