@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from rag.hybrid_retriever import rrf_score, HybridRetriever
+from rag.hybrid_retriever import rrf_score, HybridRetriever, _tokenize
 from ingest import ingest_pdf
 
 
@@ -19,6 +19,14 @@ def test_rrf_score_lower_rank_gives_higher_score():
 def test_rrf_score_custom_k():
     score = rrf_score(rank_bm25=0, rank_dense=0, k=10)
     assert abs(score - 2 / 10) < 1e-9
+
+
+def test_tokenize_lowercases_and_strips_punctuation():
+    assert _tokenize("Total: $212.09 DUE") == ["total", "212", "09", "due"]
+
+
+def test_tokenize_empty():
+    assert _tokenize("") == []
 
 
 @pytest.mark.slow

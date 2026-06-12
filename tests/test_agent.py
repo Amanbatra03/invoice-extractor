@@ -96,3 +96,36 @@ def test_agent_self_critique_accepts_grounded_answer():
     })
 
     assert result["grounded"] is True
+
+
+class _RecordingLLM:
+    def __init__(self, responses: dict):
+        self._responses = responses
+        self.prompts: list[str] = []
+
+    def invoke(self, prompt: str) -> str:
+        self.prompts.append(prompt)
+        prompt_lower = prompt.lower()
+        for keyword, response in self._responses.items():
+            if keyword in prompt_lower:
+                return response
+        return "default response"
+
+
+def test_rewrite_retry_includes_previous_attempt():
+    llm = _RecordingLLM({
+        "rewrite": "What is the invoice number?",
+        "relevant": "no",
+        "use the following": "not found",
+        "supported": "yes",
+    })
+    retriever = _make_mock_retriever([{"text": "unrelated", "page": 1, "score": 0.1}])
+    agent = build_agent(retriever, llm=llm)
+    agent.invoke({
+        "query": "invoice number?", "rewritten_query": "", "chunks": [],
+        "answer": "", "relevant": False, "grounded": False,
+        "iterations": 0, "critique_iterations": 0,
+    })
+    rewrite_prompts = [p for p in llm.prompts if "rewrite" in p.lower()]
+    assert len(rewrite_prompts) >= 2
+    assert "previous rewrite" in rewrite_prompts[1].lower()

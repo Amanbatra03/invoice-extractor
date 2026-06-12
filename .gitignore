@@ -6,3 +6,5 @@ vectorstore/
 *.pkl
 .pytest_cache/
 test_output.txt
+eval/dataset/
+eval/results.md

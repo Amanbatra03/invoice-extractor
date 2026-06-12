@@ -43,3 +43,12 @@ def test_invoice_schema_from_json():
     schema = InvoiceSchema.model_validate_json(json_str)
     assert schema.vendor_name == "Corp A"
     assert schema.total_amount == 55.5
+
+
+def test_extended_fields_default_none():
+    s = InvoiceSchema()
+    assert s.po_number is None
+    assert s.payment_terms is None
+    assert s.vendor_tax_id is None
+    assert s.vendor_address is None
+    assert s.bill_to is None

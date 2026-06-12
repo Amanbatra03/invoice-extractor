@@ -73,3 +73,27 @@ def test_compare_single_invoice_returns_empty():
     s = _schema(vendor_name="ACME")
     result = compare_invoices([("only", s)])
     assert result == {"table": {}, "discrepancies": []}
+
+
+def test_same_amount_different_currency_not_total_flagged():
+    a = _schema(total_amount=100.0, currency="USD")
+    b = _schema(total_amount=9000.0, currency="INR")
+    result = compare_invoices([("a", a), ("b", b)])
+    fields = [d["field"] for d in result["discrepancies"]]
+    assert "total_amount" not in fields
+    assert "currency" in fields
+
+
+def test_total_mismatch_same_currency_still_flagged():
+    a = _schema(total_amount=100.0, currency="USD")
+    b = _schema(total_amount=200.0, currency="USD")
+    result = compare_invoices([("a", a), ("b", b)])
+    fields = [d["field"] for d in result["discrepancies"]]
+    assert "total_amount" in fields
+
+
+def test_po_number_in_table():
+    a = _schema(po_number="PO-1")
+    b = _schema(po_number="PO-2")
+    result = compare_invoices([("a", a), ("b", b)])
+    assert "po_number" in result["table"]
