@@ -1,7 +1,6 @@
 import asyncio
 import re
 import uuid
-from typing import Any
 
 from rank_bm25 import BM25Okapi
 from sqlalchemy import text
@@ -31,6 +30,16 @@ class HybridRetriever:
         self._provider = provider
         self._num_results = num_results
         self._corpus: list[dict] | None = None
+        self._bm25: BM25Okapi | None = None
+
+    async def _unwrap_rows(self, result) -> list:
+        mappings = result.mappings()
+        if asyncio.iscoroutine(mappings):
+            mappings = await mappings
+        rows = mappings.all()
+        if asyncio.iscoroutine(rows):
+            rows = await rows
+        return list(rows)
 
     async def _load_corpus(self) -> list[dict]:
         if self._corpus is None:
@@ -41,14 +50,7 @@ class HybridRetriever:
                 ),
                 {"inv_id": str(self._invoice_id)},
             )
-            # result.mappings() is synchronous in real SQLAlchemy, but
-            # AsyncMock auto-wraps child attributes as coroutines in tests.
-            mappings_result = result.mappings()
-            if asyncio.iscoroutine(mappings_result):
-                mappings_result = await mappings_result
-            rows = mappings_result.all()
-            if asyncio.iscoroutine(rows):
-                rows = await rows
+            rows = await self._unwrap_rows(result)
             self._corpus = [
                 {"id": str(r["id"]), "chunk_text": r["chunk_text"], "page_num": r["page_num"]}
                 for r in rows
@@ -56,9 +58,10 @@ class HybridRetriever:
         return self._corpus
 
     def _bm25_retrieve(self, corpus: list[dict], query: str, n: int) -> list[dict]:
-        tokenized = [_tokenize(c["chunk_text"]) for c in corpus]
-        bm25 = BM25Okapi(tokenized) if tokenized else BM25Okapi([[""]])
-        scores = bm25.get_scores(_tokenize(query))
+        if self._bm25 is None:
+            tokenized = [_tokenize(c["chunk_text"]) for c in corpus]
+            self._bm25 = BM25Okapi(tokenized) if tokenized else BM25Okapi([[""]])
+        scores = self._bm25.get_scores(_tokenize(query))
         ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
         return [
             {
@@ -71,14 +74,16 @@ class HybridRetriever:
         ]
 
     async def _dense_retrieve(self, corpus: list[dict], query: str, n: int) -> list[dict]:
-        query_embedding = self._provider.embed_text([query])[0]
+        query_embedding = await asyncio.to_thread(self._provider.embed_text, [query])
+        query_embedding = query_embedding[0]
         result = await self._db.execute(
             text(
-                "SELECT id, chunk_text, page_num, "
-                "1 - (embedding <=> CAST(:emb AS vector)) AS similarity "
-                "FROM invoice_chunks "
-                "WHERE invoice_id = :inv_id "
-                "ORDER BY embedding <=> CAST(:emb AS vector) "
+                "WITH q AS (SELECT CAST(:emb AS vector) AS vec) "
+                "SELECT ic.id, ic.chunk_text, ic.page_num, "
+                "1 - (ic.embedding <=> q.vec) AS similarity "
+                "FROM invoice_chunks ic, q "
+                "WHERE ic.invoice_id = :inv_id "
+                "ORDER BY ic.embedding <=> q.vec "
                 "LIMIT :n"
             ),
             {
@@ -87,7 +92,7 @@ class HybridRetriever:
                 "n": n,
             },
         )
-        rows = result.mappings().all()
+        rows = await self._unwrap_rows(result)
         return [
             {
                 "id": str(r["id"]),
@@ -104,15 +109,8 @@ class HybridRetriever:
             return []
         n = min(self._num_results * 3, len(corpus))
 
-        # Support both sync and async versions of _bm25_retrieve/_dense_retrieve
-        # (the async variant is for the real implementation; sync for testability)
-        bm25_raw = self._bm25_retrieve(corpus, query, n)
-        bm25_result = await bm25_raw if asyncio.iscoroutine(bm25_raw) else bm25_raw
-
-        dense_raw = self._dense_retrieve(corpus, query, n)
-        dense_results = await dense_raw if asyncio.iscoroutine(dense_raw) else dense_raw
-
-        bm25_results: list[dict] = bm25_result  # type: ignore[assignment]
+        bm25_results = self._bm25_retrieve(corpus, query, n)
+        dense_results = await self._dense_retrieve(corpus, query, n)
 
         bm25_ranks = {r["id"]: rank for rank, r in enumerate(bm25_results)}
         dense_ranks = {r["id"]: rank for rank, r in enumerate(dense_results)}
