@@ -17,4 +17,9 @@ class InvoiceSchema(BaseModel):
     tax: float | None = None
     total_amount: float | None = None
     currency: str | None = None
+    po_number: str | None = None
+    payment_terms: str | None = None
+    vendor_tax_id: str | None = None
+    vendor_address: str | None = None
+    bill_to: str | None = None
     line_items: list[LineItem] = []

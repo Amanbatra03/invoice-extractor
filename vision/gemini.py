@@ -30,6 +30,11 @@ Return ONLY a valid JSON object with these exact keys (use null for missing valu
   "tax": number or null,
   "total_amount": number or null,
   "currency": string or null,
+  "po_number": string or null,
+  "payment_terms": string or null,
+  "vendor_tax_id": string or null,
+  "vendor_address": string or null,
+  "bill_to": string or null,
   "line_items": [
     {"description": string, "quantity": number or null, "unit_price": number or null, "total": number or null}
   ]
