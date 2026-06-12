@@ -8,19 +8,25 @@ A unified analyst-grade invoice extraction tool with a dual-mode pipeline: a **f
 
 - **Agentic RAG for PDFs** — 5-node LangGraph graph: query rewriting → hybrid retrieval → relevance grading → answer generation → self-critique
 - **Hybrid Retrieval** — BM25 (sparse) + ChromaDB (dense) fused via Reciprocal Rank Fusion (RRF)
-- **Structured Extraction** — Pydantic v2 schema extracts vendor, invoice #, dates, totals, line items; exportable as JSON or CSV
+- **Whole-Document Schema-Constrained Extraction** — full document fed to the LLM with JSON-mode output locked to the `InvoiceSchema`; no chunk-hunting
+- **Arithmetic Validation** — post-extraction checks: line-item qty × unit price, sum of items vs subtotal, subtotal + tax vs total (2% tolerance)
+- **OCR Fallback** — scanned/image-only PDFs are automatically rendered and OCR'd via pypdfium2 + RapidOCR when pypdf finds no text
 - **Multi-Invoice Comparison** — side-by-side field diff with automatic discrepancy detection (vendor mismatch, total >5%, date gap >30 days)
+- **Structured Extraction** — Pydantic v2 `InvoiceSchema` extracts vendor, invoice #, dates, totals, line items; exportable as JSON or CSV
+- **Extraction Persistence** — extractions saved as sidecar JSON files; rehydrated on startup, no re-extraction needed
 - **Gemini Vision** — Google Gemini 2.0 Flash for image invoices (JPG/PNG)
 - **Fully Offline PDF Path** — Ollama local LLM + local embeddings, no API key required for PDF mode
 - **Per-Invoice Dedup** — SHA-256 content hashing, re-upload skips re-ingestion
+- **Password Gate** — optional `APP_PASSWORD` env var gates the Streamlit UI with a constant-time password check
+- **PDF Preview** — first-page thumbnail rendered in the sidebar alongside each invoice
 
 ---
 
 ## Architecture
 
 ```
-app.py (Streamlit)
-  Sidebar: upload · invoice manager · config
+app.py (Streamlit) + auth.py (password gate)
+  Sidebar: upload · invoice manager (store.py) · config
   ┌──────────────┬──────────────┬──────────────┐
   │   Q&A tab    │ Extract tab  │ Compare tab  │
   └──────┬───────┴──────┬───────┴──────┬───────┘
@@ -28,11 +34,15 @@ app.py (Streamlit)
     PDF path       PDF path       PDF path
     rag/agent.py   rag/extractor  rag/comparator
     (LangGraph)        │               │
-         │         models/invoice.py (Pydantic)
-    rag/hybrid_retriever.py
+         │         rag/validator.py    │
+         │         (arithmetic checks) │
+    rag/hybrid_retriever.py      models/invoice.py (Pydantic)
     BM25 + ChromaDB → RRF fusion
          │
-    ingest.py (SHA256 keying, per-invoice vectorstore)
+    ingest.py (SHA256, ChromaDB + BM25)
+    rag/ocr.py (pypdfium2 + RapidOCR fallback)
+    rag/llm.py (Ollama factory, schema-constrained)
+    rag/preview.py (first-page thumbnail)
 
     Image path → vision/gemini.py (Gemini 2.0 Flash)
 ```
@@ -110,7 +120,7 @@ or a `.env` file next to `docker-compose.yml` to pass them in.
 ### PDF Invoices (offline)
 1. Upload a PDF in the sidebar → click **Add Invoice**
 2. **Q&A tab** — ask natural language questions; the agent retrieves relevant chunks, generates a grounded answer, and shows its reasoning trace
-3. **Extract tab** — click **Extract All Fields** to populate a structured table; download as JSON or CSV
+3. **Extract tab** — click **Extract All Fields** to populate a structured table; arithmetic warnings surface inline; download as JSON or CSV
 4. **Compare tab** — load 2+ PDFs, check the ones to compare, click **Compare Selected**
 
 ### Image Invoices (Gemini)
@@ -131,6 +141,7 @@ Edit `config.yml` to tune retrieval and generation:
 | `NUM_RESULTS` | `4` | Chunks retrieved per query |
 | `MAX_AGENT_ITERATIONS` | `3` | Max query-rewrite retries |
 | `MAX_CRITIQUE_ITERATIONS` | `1` | Max self-critique retries |
+| `NUM_CTX` | `8192` | Ollama context window (tokens) |
 | `EMBEDDINGS` | `all-MiniLM-L6-v2` | HuggingFace embedding model |
 | `LLM` | `llama3.2:3b` | Ollama model name |
 | `DEVICE` | `cpu` | `cpu` or `cuda` |
@@ -142,19 +153,29 @@ Edit `config.yml` to tune retrieval and generation:
 ```
 invoice-extractor/
 ├── app.py                  # Unified Streamlit application
-├── ingest.py               # PDF ingestion (SHA256 keying, ChromaDB + BM25)
+├── auth.py                 # Optional password gate (APP_PASSWORD)
+├── ingest.py               # PDF ingestion (SHA256, ChromaDB + BM25)
+├── store.py                # Invoice persistence: discover, save, load, delete
 ├── config.yml              # Runtime configuration
 ├── models/
 │   └── invoice.py          # Pydantic InvoiceSchema + LineItem
 ├── rag/
 │   ├── agent.py            # LangGraph 5-node agentic RAG
 │   ├── hybrid_retriever.py # BM25 + ChromaDB RRF fusion
-│   ├── extractor.py        # Structured field extraction
+│   ├── extractor.py        # Whole-document schema-constrained extraction
+│   ├── validator.py        # Arithmetic validation checks
 │   ├── comparator.py       # Multi-invoice comparison
+│   ├── llm.py              # Ollama LLM factory (JSON-mode, configurable context)
+│   ├── ocr.py              # OCR fallback via pypdfium2 + RapidOCR
+│   ├── preview.py          # First-page PDF thumbnail
 │   └── utils.py            # Shared: load_config, extract_json_from_text
 ├── vision/
 │   └── gemini.py           # Gemini 2.0 Flash for image invoices
-└── tests/                  # 40 tests (TDD, pytest)
+├── eval/
+│   ├── generate_dataset.py # Synthetic invoice dataset generator
+│   ├── run_eval.py         # Field-level accuracy evaluation runner
+│   └── scoring.py          # Per-field scoring logic
+└── tests/                  # 60+ tests (TDD, pytest)
 ```
 
 ---
@@ -171,6 +192,7 @@ invoice-extractor/
 | Vector store | ChromaDB (PersistentClient) |
 | Sparse retrieval | rank-bm25 (BM25Okapi) |
 | PDF loading | pypdf |
+| OCR | pypdfium2 + RapidOCR |
 | Schema validation | Pydantic v2 |
 | Testing | pytest |
 
@@ -185,3 +207,13 @@ pytest tests/ -m "not slow"
 # Full suite including integration tests (downloads ~22MB embedding model on first run)
 pytest tests/ -v
 ```
+
+## Running the Evaluation Suite
+
+```bash
+# Requires Ollama running with the configured model
+python -m eval.run_eval          # defaults to 12 synthetic invoices
+python -m eval.run_eval --n 25   # larger run
+```
+
+Results are written to `eval/results.md` with per-field accuracy and an overall score.
