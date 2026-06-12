@@ -22,13 +22,19 @@ def build_agent(retriever: HybridRetriever, llm=None):
 
     if llm is None:
         from rag.llm import get_ollama_llm
-        llm = get_ollama_llm(cfg.LLM)
+        llm = get_ollama_llm(cfg.LLM, num_ctx=int(cfg.NUM_CTX))
 
     def query_rewriter(state: AgentState) -> AgentState:
         prompt = (
             f"Rewrite this invoice question to be specific and extractable.\n"
-            f"Original: {state['query']}\nRewritten:"
+            f"Original: {state['query']}\n"
         )
+        if state.get("rewritten_query"):
+            prompt += (
+                f"A previous rewrite '{state['rewritten_query']}' retrieved irrelevant "
+                f"context; produce a substantively different phrasing.\n"
+            )
+        prompt += "Rewritten:"
         rewritten = llm.invoke(prompt).strip()
         return {
             **state,
