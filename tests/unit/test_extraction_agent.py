@@ -45,3 +45,14 @@ async def test_extraction_retries_on_schema_error():
     result = await run_extraction(mock_retriever, mock_provider)
     assert result.vendor_name == "Retry Corp"
     assert mock_provider.generate_structured.call_count == 2
+
+@pytest.mark.asyncio
+async def test_extraction_raises_after_max_retries():
+    from agents.extraction_agent import run_extraction, MAX_RETRIES
+    mock_retriever = AsyncMock()
+    mock_retriever.all_chunks = AsyncMock(return_value=[{"text": "invoice", "page": 1}])
+    mock_provider = MagicMock()
+    mock_provider.generate_structured.side_effect = ValueError("always fails")
+    with pytest.raises(ValueError, match="Extraction failed"):
+        await run_extraction(mock_retriever, mock_provider)
+    assert mock_provider.generate_structured.call_count == MAX_RETRIES + 1
