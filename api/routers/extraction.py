@@ -65,7 +65,10 @@ async def get_extraction(
 ):
     await _get_invoice(invoice_id, user.tenant_id, db)
     ext = await db.scalar(
-        select(Extraction).where(Extraction.invoice_id == invoice_id)
+        select(Extraction).where(
+            Extraction.invoice_id == invoice_id,
+            Extraction.tenant_id == uuid.UUID(user.tenant_id),
+        )
     )
     if not ext:
         raise HTTPException(404, "No extraction found — run POST /extract first")
@@ -80,7 +83,10 @@ async def validate_extraction(
 ):
     await _get_invoice(invoice_id, user.tenant_id, db)
     ext = await db.scalar(
-        select(Extraction).where(Extraction.invoice_id == invoice_id)
+        select(Extraction).where(
+            Extraction.invoice_id == invoice_id,
+            Extraction.tenant_id == uuid.UUID(user.tenant_id),
+        )
     )
     if not ext:
         raise HTTPException(404, "No extraction found")

@@ -80,6 +80,8 @@ async def ask_question_stream(
     )
     if not inv:
         raise HTTPException(404, "Invoice not found")
+    if inv.status != "ready":
+        raise HTTPException(409, "Invoice not yet ingested")
 
     provider = get_provider()
     retriever = HybridRetriever(invoice_id=invoice_id, db=db, provider=provider)

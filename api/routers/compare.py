@@ -38,7 +38,12 @@ async def compare_invoices(
         )
         if not inv:
             raise HTTPException(404, f"Invoice {inv_id} not found")
-        ext = await db.scalar(select(Extraction).where(Extraction.invoice_id == inv_id))
+        ext = await db.scalar(
+            select(Extraction).where(
+                Extraction.invoice_id == inv_id,
+                Extraction.tenant_id == uuid.UUID(user.tenant_id),
+            )
+        )
         if not ext:
             raise HTTPException(409, f"Invoice {inv_id} has no extraction — run /extract first")
         named_schemas.append((inv.file_name, InvoiceSchema.model_validate(ext.schema_json)))
