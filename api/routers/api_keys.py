@@ -1,3 +1,4 @@
+import asyncio
 import secrets
 import uuid
 from datetime import datetime, timezone
@@ -38,8 +39,6 @@ async def create_api_key(
     user: CurrentUser = Depends(require_roles("admin")),
     db: AsyncSession = Depends(get_db),
 ):
-    import asyncio
-
     raw_key = secrets.token_urlsafe(32)
     key_hash = await asyncio.to_thread(bcrypt.hashpw, raw_key.encode(), bcrypt.gensalt())
     key = ApiKey(

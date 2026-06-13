@@ -33,6 +33,7 @@ async def create_webhook(
     db.add(wh)
     await db.commit()
     await db.refresh(wh)
+    log.info("webhook.created", webhook_id=str(wh.id), tenant_id=user.tenant_id)
     return {"data": WebhookOut.model_validate(wh), "error": None, "request_id": None}
 
 
@@ -118,6 +119,7 @@ async def delete_webhook(
         raise HTTPException(404, "Webhook not found")
     await db.delete(wh)
     await db.commit()
+    log.info("webhook.deleted", webhook_id=str(webhook_id))
     return {"data": {"deleted": True}, "error": None, "request_id": None}
 
 
