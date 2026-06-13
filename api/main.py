@@ -10,6 +10,7 @@ from api.config import get_settings
 from api.middleware.rate_limiter import limiter
 from api.middleware.request_context import RequestContextMiddleware
 from api.routers import health as health_router
+from api.routers import invoices as invoices_router
 
 structlog.configure(
     processors=[
@@ -61,5 +62,6 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(health_router.router, prefix="/api/v1")
+    app.include_router(invoices_router.router, prefix="/api/v1")
 
     return app
