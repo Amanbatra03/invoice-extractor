@@ -1,6 +1,5 @@
 import uuid
 
-import structlog
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -11,7 +10,6 @@ from db.models import Job
 from db.session import get_db
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
-log = structlog.get_logger()
 
 
 @router.get("/{job_id}", response_model=dict)

@@ -109,6 +109,7 @@ async def export_batch_csv(
         select(Job).where(
             Job.id == job_id,
             Job.tenant_id == uuid.UUID(user.tenant_id),
+            Job.type == "batch_extract",
         )
     )
     if not job or not job.result:
