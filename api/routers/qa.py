@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from agents.base import get_provider
 from agents.qa_agent import build_qa_agent
 from agents.retriever import HybridRetriever
+from api.config import get_settings
 from api.dependencies import require_roles, CurrentUser
 from db.models import Invoice
 from db.session import get_db
@@ -38,9 +39,23 @@ async def ask_question(
     if inv.status != "ready":
         raise HTTPException(409, "Invoice not yet ingested")
 
+    settings = get_settings()
     provider = get_provider()
     retriever = HybridRetriever(invoice_id=invoice_id, db=db, provider=provider)
     agent = build_qa_agent(retriever, provider)
+
+    config: dict = {}
+    if settings.LANGCHAIN_TRACING_V2:
+        try:
+            from langchain_core.callbacks import LangChainTracer
+            tracer = LangChainTracer(
+                project_name=settings.LANGCHAIN_PROJECT,
+                tags=[f"tenant:{user.tenant_id}", f"invoice:{invoice_id}"],
+            )
+            config = {"callbacks": [tracer]}
+        except ImportError:
+            pass
+
     trace_steps = []
     async for event in agent.astream({
         "query": body.question,
@@ -51,7 +66,7 @@ async def ask_question(
         "grounded": False,
         "iterations": 0,
         "critique_iterations": 0,
-    }):
+    }, config=config):
         trace_steps.append(event)
     final_state = list(trace_steps[-1].values())[0] if trace_steps else {}
     return {
@@ -83,9 +98,22 @@ async def ask_question_stream(
     if inv.status != "ready":
         raise HTTPException(409, "Invoice not yet ingested")
 
+    settings = get_settings()
     provider = get_provider()
     retriever = HybridRetriever(invoice_id=invoice_id, db=db, provider=provider)
     agent = build_qa_agent(retriever, provider)
+
+    stream_config: dict = {}
+    if settings.LANGCHAIN_TRACING_V2:
+        try:
+            from langchain_core.callbacks import LangChainTracer
+            tracer = LangChainTracer(
+                project_name=settings.LANGCHAIN_PROJECT,
+                tags=[f"tenant:{user.tenant_id}", f"invoice:{invoice_id}"],
+            )
+            stream_config = {"callbacks": [tracer]}
+        except ImportError:
+            pass
 
     async def event_generator() -> AsyncGenerator[str, None]:
         import json
@@ -98,7 +126,7 @@ async def ask_question_stream(
             "grounded": False,
             "iterations": 0,
             "critique_iterations": 0,
-        }):
+        }, stream_config):
             node_name = list(event.keys())[0]
             state = list(event.values())[0]
             yield f"data: {json.dumps({'node': node_name, 'answer': state.get('answer', '')})}\n\n"

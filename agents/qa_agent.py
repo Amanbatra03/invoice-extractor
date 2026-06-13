@@ -22,6 +22,8 @@ def build_qa_agent(
     provider: LLMProvider,
     max_iter: int | None = None,
     max_critique: int | None = None,
+    tenant_id: str | None = None,
+    invoice_id: str | None = None,
 ):
     if max_iter is None or max_critique is None:
         try:

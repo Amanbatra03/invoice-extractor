@@ -82,4 +82,23 @@ def create_app() -> FastAPI:
     app.include_router(api_keys_router.router, prefix="/api/v1")
     app.include_router(audit_router.router, prefix="/api/v1")
 
+    from prometheus_fastapi_instrumentator import Instrumentator
+    from prometheus_client import Counter, Histogram
+
+    try:
+        extractions_total = Counter(  # noqa: F841
+            "invoice_extractions_total", "Total extractions", ["status"]
+        )
+        extraction_duration = Histogram(  # noqa: F841
+            "invoice_extraction_duration_seconds", "Extraction latency",
+            buckets=[0.5, 1, 2, 5, 10, 30],
+        )
+        tokens_used_total = Counter(  # noqa: F841
+            "llm_tokens_used_total", "LLM tokens", ["model", "direction"]
+        )
+    except ValueError:
+        pass
+
+    Instrumentator().instrument(app).expose(app, endpoint="/api/v1/metrics")
+
     return app
