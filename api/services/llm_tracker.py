@@ -8,9 +8,6 @@ import structlog
 
 log = structlog.get_logger()
 
-_COST_PER_INPUT_TOKEN = 0.000_000_10
-_COST_PER_OUTPUT_TOKEN = 0.000_000_40
-
 
 def llm_usage_tracker(agent: str):
     def decorator(fn: Callable):
