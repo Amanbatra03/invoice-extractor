@@ -47,24 +47,24 @@ def _make_mock_queue():
 
 
 def _build_app_with_overrides(mock_db, mock_queue):
-    with patch.dict(os.environ, _TEST_ENV):
-        from api.config import get_settings
-        get_settings.cache_clear()
-        from api.main import create_app
-        from db.session import get_db
-        from api.dependencies import get_queue
+    """Build app with dependency overrides. Caller must ensure _TEST_ENV is patched."""
+    from api.config import get_settings
+    get_settings.cache_clear()
+    from api.main import create_app
+    from db.session import get_db
+    from api.dependencies import get_queue
 
-        app = create_app()
+    app = create_app()
 
-        async def override_get_db():
-            yield mock_db
+    async def override_get_db():
+        yield mock_db
 
-        def override_get_queue():
-            return mock_queue
+    def override_get_queue():
+        return mock_queue
 
-        app.dependency_overrides[get_db] = override_get_db
-        app.dependency_overrides[get_queue] = override_get_queue
-        return app
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_queue] = override_get_queue
+    return app
 
 
 @pytest.mark.asyncio
@@ -98,19 +98,20 @@ async def test_upload_invoice_returns_job_id():
 
     mock_db.add = MagicMock(side_effect=capture_add)
 
-    app = _build_app_with_overrides(mock_db, mock_queue)
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app_with_overrides(mock_db, mock_queue)
 
-    with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
-        with patch("api.routers.invoices.upload_file", return_value="path/to/file.pdf"):
-            with patch("api.routers.invoices._enqueue_ingest", new=AsyncMock(return_value=job_id)):
-                async with AsyncClient(
-                    transport=ASGITransport(app=app), base_url="http://test"
-                ) as client:
-                    response = await client.post(
-                        "/api/v1/invoices/upload",
-                        files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
-                        headers={"Authorization": "Bearer fake.jwt.token"},
-                    )
+        with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
+            with patch("api.routers.invoices.upload_file", return_value="path/to/file.pdf"):
+                with patch("api.routers.invoices._enqueue_ingest", new=AsyncMock(return_value=job_id)):
+                    async with AsyncClient(
+                        transport=ASGITransport(app=app), base_url="http://test"
+                    ) as client:
+                        response = await client.post(
+                            "/api/v1/invoices/upload",
+                            files={"file": ("test.pdf", b"%PDF-1.4 fake content", "application/pdf")},
+                            headers={"Authorization": "Bearer fake.jwt.token"},
+                        )
 
     assert response.status_code == 200, response.text
     data = response.json()["data"]
@@ -129,16 +130,17 @@ async def test_list_invoices_returns_empty_for_new_tenant():
     mock_result.scalars.return_value.all.return_value = []
     mock_db.execute = AsyncMock(return_value=mock_result)
 
-    app = _build_app_with_overrides(mock_db, mock_queue)
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app_with_overrides(mock_db, mock_queue)
 
-    with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.get(
-                "/api/v1/invoices",
-                headers={"Authorization": "Bearer fake.jwt.token"},
-            )
+        with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.get(
+                    "/api/v1/invoices",
+                    headers={"Authorization": "Bearer fake.jwt.token"},
+                )
 
     assert response.status_code == 200, response.text
     body = response.json()
@@ -151,16 +153,17 @@ async def test_upload_rejects_non_pdf_exe():
     mock_db = _make_mock_db()
     mock_queue = _make_mock_queue()
 
-    app = _build_app_with_overrides(mock_db, mock_queue)
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app_with_overrides(mock_db, mock_queue)
 
-    with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
-        async with AsyncClient(
-            transport=ASGITransport(app=app), base_url="http://test"
-        ) as client:
-            response = await client.post(
-                "/api/v1/invoices/upload",
-                files={"file": ("malware.exe", b"MZ\x90\x00", "application/octet-stream")},
-                headers={"Authorization": "Bearer fake.jwt.token"},
-            )
+        with patch("api.dependencies.verify_supabase_jwt", return_value=FAKE_USER):
+            async with AsyncClient(
+                transport=ASGITransport(app=app), base_url="http://test"
+            ) as client:
+                response = await client.post(
+                    "/api/v1/invoices/upload",
+                    files={"file": ("malware.exe", b"MZ\x90\x00", "application/octet-stream")},
+                    headers={"Authorization": "Bearer fake.jwt.token"},
+                )
 
     assert response.status_code == 400, response.text

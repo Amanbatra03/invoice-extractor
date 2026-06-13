@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -17,6 +18,7 @@ log = structlog.get_logger()
 
 _ALLOWED_TYPES = {"application/pdf", "image/jpeg", "image/png", "image/jpg"}
 _MAX_SIZE = 50 * 1024 * 1024  # 50 MB
+_EXECUTABLE_MAGIC = (b"MZ", b"\x7fELF", b"\xfe\xed\xfa\xce", b"\xfe\xed\xfa\xcf", b"\xca\xfe\xba\xbe")
 
 
 def _detect_file_type(filename: str, content: bytes) -> str:
@@ -33,7 +35,7 @@ def _validate_upload(file: UploadFile, content: bytes) -> str:
         raise HTTPException(400, "File exceeds 50MB limit")
     if file.content_type and file.content_type not in _ALLOWED_TYPES:
         raise HTTPException(400, f"Unsupported content type: {file.content_type}")
-    if content[:4] == b"MZ\x90\x00" or content[:2] == b"MZ":
+    if any(content.startswith(m) for m in _EXECUTABLE_MAGIC):
         raise HTTPException(400, "Executable files are not allowed")
     return _detect_file_type(file.filename or "", content)
 
@@ -57,7 +59,7 @@ async def upload_invoice(
 ):
     content = await file.read()
     file_type = _validate_upload(file, content)
-    sha = sha256_file(content)
+    sha = await asyncio.to_thread(sha256_file, content)
 
     existing = await db.scalar(
         select(Invoice).where(
@@ -72,7 +74,7 @@ async def upload_invoice(
             "request_id": None,
         }
 
-    storage_path = upload_file(user.tenant_id, file.filename or f"upload.{file_type}", content)
+    storage_path = await asyncio.to_thread(upload_file, user.tenant_id, file.filename or f"upload.{file_type}", content)
     invoice = Invoice(
         tenant_id=uuid.UUID(user.tenant_id),
         uploaded_by=uuid.UUID(user.id) if user.id and user.id != "api_key" else None,
@@ -165,7 +167,7 @@ async def download_invoice(
     )
     if not inv:
         raise HTTPException(404, "Invoice not found")
-    url = get_signed_url(user.tenant_id, inv.storage_path)
+    url = await asyncio.to_thread(get_signed_url, user.tenant_id, inv.storage_path)
     return {"data": {"signed_url": url, "expires_in": 900}, "error": None, "request_id": None}
 
 
@@ -184,7 +186,7 @@ async def delete_invoice(
     if not inv:
         raise HTTPException(404, "Invoice not found")
     try:
-        delete_file(user.tenant_id, inv.storage_path)
+        await asyncio.to_thread(delete_file, user.tenant_id, inv.storage_path)
     except Exception:
         pass
     await db.delete(inv)
