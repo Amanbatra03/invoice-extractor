@@ -1,0 +1,89 @@
+services:
+  - type: web
+    name: invoice-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    plan: starter
+    healthCheckPath: /api/v1/health/ready
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: REDIS_URL
+        fromService:
+          name: invoice-redis
+          type: redis
+          property: connectionString
+      - key: LANGCHAIN_TRACING_V2
+        value: "true"
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: LANGCHAIN_PROJECT
+        value: invoice-analyst-prod
+      - key: SENTRY_DSN
+        sync: false
+      - key: ENV
+        value: production
+      - key: GIT_SHA
+        fromGitInfo: commitSha
+      - key: ALLOWED_ORIGINS
+        sync: false
+
+  - type: web
+    name: invoice-frontend
+    runtime: docker
+    dockerfilePath: ./Dockerfile.frontend
+    plan: starter
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: API_BASE_URL
+        fromService:
+          name: invoice-api
+          type: web
+          property: host
+
+  - type: worker
+    name: invoice-worker
+    runtime: docker
+    dockerfilePath: ./Dockerfile.api
+    startCommand: python workers/worker.py
+    plan: starter
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GOOGLE_API_KEY
+        sync: false
+      - key: LLM_PROVIDER
+        value: gemini
+      - key: REDIS_URL
+        fromService:
+          name: invoice-redis
+          type: redis
+          property: connectionString
+      - key: LANGCHAIN_TRACING_V2
+        value: "true"
+      - key: LANGCHAIN_API_KEY
+        sync: false
+      - key: LANGCHAIN_PROJECT
+        value: invoice-analyst-prod
+
+  - type: redis
+    name: invoice-redis
+    plan: starter
+    maxmemoryPolicy: allkeys-lru

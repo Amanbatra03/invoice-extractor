@@ -1,0 +1,26 @@
+name: Deploy to Render
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run DB migrations
+        env:
+          DATABASE_URL: ${{ secrets.PROD_DATABASE_URL }}
+        run: |
+          pip install -e ".[prod]"
+          alembic upgrade head
+
+      - name: Deploy API to Render
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_API }}"
+
+      - name: Deploy Frontend to Render
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_FRONTEND }}"
+
+      - name: Deploy Worker to Render
+        run: curl -X POST "${{ secrets.RENDER_DEPLOY_HOOK_WORKER }}"
