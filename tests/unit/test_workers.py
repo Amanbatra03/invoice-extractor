@@ -13,9 +13,8 @@ async def test_extract_job_writes_extraction_to_db():
 
     with patch("workers.extract_job.get_session_factory") as mock_sf:
         mock_db = AsyncMock()
-        mock_db.scalar = AsyncMock(return_value=MagicMock(
-            id=uuid.UUID(invoice_id), tenant_id=uuid.uuid4(), file_type="pdf"
-        ))
+        invoice_mock = MagicMock(id=uuid.UUID(invoice_id), tenant_id=uuid.uuid4(), file_type="pdf")
+        mock_db.scalar = AsyncMock(side_effect=[invoice_mock, None])
         mock_sf.return_value.return_value.__aenter__ = AsyncMock(return_value=mock_db)
         mock_sf.return_value.return_value.__aexit__ = AsyncMock(return_value=False)
 
@@ -24,6 +23,7 @@ async def test_extract_job_writes_extraction_to_db():
                 with patch("workers.extract_job.get_provider"):
                     with patch("workers.extract_job.run_validation", return_value=MagicMock(issues=[])):
                         await _run_async(invoice_id, job_id)
+        assert mock_db.add.called
 
 def test_webhook_signs_payload():
     from workers.webhook_job import _build_signed_request

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
@@ -40,7 +41,7 @@ async def _run_async(invoice_id_str: str, job_id_str: str) -> None:
                 from api.services.storage import download_file
                 import tempfile
                 from pathlib import Path
-                content = download_file(str(inv.tenant_id), inv.storage_path)
+                content = await asyncio.to_thread(download_file, str(inv.tenant_id), inv.storage_path)
                 suffix = "." + inv.file_name.rsplit(".", 1)[-1]
                 with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
                     tmp.write(content)

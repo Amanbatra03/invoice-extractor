@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -89,9 +90,10 @@ async def _run_async(invoice_id_str: str, job_id_str: str) -> None:
         await db.commit()
 
         try:
-            pdf_bytes = download_file(str(inv.tenant_id), inv.storage_path)
+            pdf_bytes = await asyncio.to_thread(download_file, str(inv.tenant_id), inv.storage_path)
             if inv.file_type == "pdf":
-                chunks = _chunk_pdf_bytes(
+                chunks = await asyncio.to_thread(
+                    _chunk_pdf_bytes,
                     pdf_bytes,
                     getattr(settings, "CHUNK_SIZE", 800),
                     getattr(settings, "CHUNK_OVERLAP", 80),
