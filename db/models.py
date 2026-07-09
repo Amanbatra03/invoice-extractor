@@ -142,6 +142,32 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
+class Conversation(Base):
+    __tablename__ = "conversations"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(UUID(as_uuid=True), nullable=True, index=True)
+    title = Column(String(255), nullable=False, server_default="New conversation")
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    messages = relationship(
+        "ConversationMessage", back_populates="conversation",
+        cascade="all, delete-orphan", order_by="ConversationMessage.created_at",
+    )
+
+
+class ConversationMessage(Base):
+    __tablename__ = "conversation_messages"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    conversation_id = Column(UUID(as_uuid=True), ForeignKey("conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    tenant_id = Column(UUID(as_uuid=True), ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True)
+    role = Column(String(10), nullable=False)  # 'user' | 'assistant'
+    content = Column(Text, nullable=False)
+    meta = Column("metadata", JSONB, nullable=True)  # sources, route, trace
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    conversation = relationship("Conversation", back_populates="messages")
+
+
 class LlmUsage(Base):
     __tablename__ = "llm_usage"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
