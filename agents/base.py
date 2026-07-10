@@ -16,6 +16,9 @@ class LLMProvider(Protocol):
     def generate_structured(self, prompt: str, schema: type) -> dict:
         ...
 
+    def generate_with_image(self, prompt: str, image_path: Path, system: str | None = None) -> str:
+        ...
+
 
 def get_provider() -> LLMProvider:
     from api.config import get_settings

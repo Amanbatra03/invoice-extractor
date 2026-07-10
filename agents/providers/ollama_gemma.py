@@ -61,6 +61,18 @@ class OllamaGemmaProvider:
             resp.raise_for_status()
         return resp.json().get("response", "")
 
+    def generate_with_image(self, prompt: str, image_path: Path, system: str | None = None) -> str:
+        with open(image_path, "rb") as f:
+            img_b64 = base64.b64encode(f.read()).decode("utf-8")
+        try:
+            return self.generate(prompt, system=system, images=[img_b64])
+        except httpx.HTTPError as exc:
+            log.warning("ollama_vision_failed", error=str(exc))
+            return (
+                "I couldn't analyse this image with the configured local model. "
+                "Image questions work best with the Gemini provider."
+            )
+
     def generate_structured(self, prompt: str, schema: type) -> dict:
         structured_prompt = (
             f"{prompt}\n\nRespond ONLY with valid JSON matching this structure. "

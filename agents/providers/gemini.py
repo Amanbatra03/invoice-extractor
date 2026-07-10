@@ -48,6 +48,17 @@ class GeminiProvider:
         )
         return response.text or ""
 
+    def generate_with_image(self, prompt: str, image_path: Path, system: str | None = None) -> str:
+        from PIL import Image as PILImage
+        img = PILImage.open(image_path)
+        config = types.GenerateContentConfig(system_instruction=system) if system else None
+        response = self._client.models.generate_content(
+            model=self._model,
+            contents=[prompt, img],
+            config=config,
+        )
+        return response.text or ""
+
     def generate_structured(self, prompt: str, schema: type) -> dict:
         config = types.GenerateContentConfig(
             response_mime_type="application/json",
