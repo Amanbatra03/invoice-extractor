@@ -20,12 +20,16 @@ def _rrf_score(rank_a: int, rank_b: int, k: int = 60) -> float:
 class HybridRetriever:
     def __init__(
         self,
-        invoice_id: uuid.UUID,
-        db: AsyncSession,
-        provider: LLMProvider,
+        invoice_id: uuid.UUID | None = None,
+        db: AsyncSession = None,
+        provider: LLMProvider = None,
         num_results: int = 4,
+        tenant_id: uuid.UUID | None = None,
     ):
+        if invoice_id is None and tenant_id is None:
+            raise ValueError("HybridRetriever requires an invoice_id or a tenant_id")
         self._invoice_id = invoice_id
+        self._tenant_id = tenant_id
         self._db = db
         self._provider = provider
         self._num_results = num_results
@@ -43,18 +47,32 @@ class HybridRetriever:
 
     async def _load_corpus(self) -> list[dict]:
         if self._corpus is None:
-            result = await self._db.execute(
-                text(
-                    "SELECT id, chunk_text, page_num FROM invoice_chunks "
-                    "WHERE invoice_id = :inv_id ORDER BY page_num"
-                ),
-                {"inv_id": str(self._invoice_id)},
-            )
+            if self._invoice_id is not None:
+                result = await self._db.execute(
+                    text(
+                        "SELECT id, chunk_text, page_num FROM invoice_chunks "
+                        "WHERE invoice_id = :inv_id ORDER BY page_num"
+                    ),
+                    {"inv_id": str(self._invoice_id)},
+                )
+            else:
+                result = await self._db.execute(
+                    text(
+                        "SELECT ic.id, ic.chunk_text, ic.page_num, ic.invoice_id, i.file_name "
+                        "FROM invoice_chunks ic JOIN invoices i ON i.id = ic.invoice_id "
+                        "WHERE ic.tenant_id = :tid AND i.file_type != 'image' "
+                        "ORDER BY i.file_name, ic.page_num"
+                    ),
+                    {"tid": str(self._tenant_id)},
+                )
             rows = await self._unwrap_rows(result)
-            self._corpus = [
-                {"id": str(r["id"]), "chunk_text": r["chunk_text"], "page_num": r["page_num"]}
-                for r in rows
-            ]
+            self._corpus = []
+            for r in rows:
+                entry = {"id": str(r["id"]), "chunk_text": r["chunk_text"], "page_num": r["page_num"]}
+                if "file_name" in r.keys():
+                    entry["invoice_id"] = str(r["invoice_id"])
+                    entry["file_name"] = r["file_name"]
+                self._corpus.append(entry)
         return self._corpus
 
     def _bm25_retrieve(self, corpus: list[dict], query: str, n: int) -> list[dict]:
@@ -64,20 +82,15 @@ class HybridRetriever:
         scores = self._bm25.get_scores(_tokenize(query))
         ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
         return [
-            {
-                "id": corpus[i]["id"],
-                "chunk_text": corpus[i]["chunk_text"],
-                "page_num": corpus[i]["page_num"],
-                "score": float(scores[i]),
-            }
+            {**corpus[i], "score": float(scores[i])}
             for i in ranked[:n]
         ]
 
     async def _dense_retrieve(self, corpus: list[dict], query: str, n: int) -> list[dict]:
         query_embedding = await asyncio.to_thread(self._provider.embed_text, [query])
         query_embedding = query_embedding[0]
-        result = await self._db.execute(
-            text(
+        if self._invoice_id is not None:
+            sql = (
                 "WITH q AS (SELECT CAST(:emb AS vector) AS vec) "
                 "SELECT ic.id, ic.chunk_text, ic.page_num, "
                 "1 - (ic.embedding <=> q.vec) AS similarity "
@@ -85,23 +98,34 @@ class HybridRetriever:
                 "WHERE ic.invoice_id = :inv_id "
                 "ORDER BY ic.embedding <=> q.vec "
                 "LIMIT :n"
-            ),
-            {
-                "emb": str(query_embedding),
-                "inv_id": str(self._invoice_id),
-                "n": n,
-            },
-        )
+            )
+            params = {"emb": str(query_embedding), "inv_id": str(self._invoice_id), "n": n}
+        else:
+            sql = (
+                "WITH q AS (SELECT CAST(:emb AS vector) AS vec) "
+                "SELECT ic.id, ic.chunk_text, ic.page_num, ic.invoice_id, i.file_name, "
+                "1 - (ic.embedding <=> q.vec) AS similarity "
+                "FROM invoice_chunks ic JOIN invoices i ON i.id = ic.invoice_id, q "
+                "WHERE ic.tenant_id = :tid AND i.file_type != 'image' "
+                "ORDER BY ic.embedding <=> q.vec "
+                "LIMIT :n"
+            )
+            params = {"emb": str(query_embedding), "tid": str(self._tenant_id), "n": n}
+        result = await self._db.execute(text(sql), params)
         rows = await self._unwrap_rows(result)
-        return [
-            {
+        out = []
+        for r in rows:
+            entry = {
                 "id": str(r["id"]),
                 "chunk_text": r["chunk_text"],
                 "page_num": r["page_num"],
                 "score": float(r["similarity"]),
             }
-            for r in rows
-        ]
+            if "file_name" in r.keys():
+                entry["invoice_id"] = str(r["invoice_id"])
+                entry["file_name"] = r["file_name"]
+            out.append(entry)
+        return out
 
     async def retrieve(self, query: str) -> list[dict]:
         corpus = await self._load_corpus()
@@ -122,17 +146,21 @@ class HybridRetriever:
             chunk_by_id[r["id"]] = r
 
         sentinel = n + 60
-        fused = [
-            {
-                "text": chunk_by_id[cid]["chunk_text"],
-                "page": chunk_by_id[cid]["page_num"],
+        fused = []
+        for cid in all_ids:
+            c = chunk_by_id[cid]
+            entry = {
+                "text": c["chunk_text"],
+                "page": c["page_num"],
                 "score": _rrf_score(
                     bm25_ranks.get(cid, sentinel),
                     dense_ranks.get(cid, sentinel),
                 ),
             }
-            for cid in all_ids
-        ]
+            if "file_name" in c:
+                entry["invoice_id"] = c["invoice_id"]
+                entry["file_name"] = c["file_name"]
+            fused.append(entry)
         fused.sort(key=lambda x: x["score"], reverse=True)
         return fused[: self._num_results]
 
