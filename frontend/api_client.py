@@ -31,6 +31,13 @@ class APIClient:
                 raise Exception(f"{resp.status_code}: {resp.text}")
             return resp.json()["data"]
 
+    async def _delete(self, path: str) -> Any:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.delete(f"{self._base}{path}", headers=self._headers())
+            if not resp.is_success:
+                raise Exception(f"{resp.status_code}: {resp.text}")
+            return resp.json()["data"]
+
     async def list_invoices(self, page: int = 1, limit: int = 20) -> dict:
         return await self._get("/api/v1/invoices", params={"page": page, "limit": limit})
 
@@ -77,3 +84,20 @@ class APIClient:
         if type:
             params["type"] = type
         return await self._get("/api/v1/jobs", params=params)
+
+    async def create_conversation(self, title: str | None = None) -> dict:
+        return await self._post("/api/v1/chat/conversations", json={"title": title})
+
+    async def list_conversations(self) -> list:
+        return await self._get("/api/v1/chat/conversations")
+
+    async def get_conversation(self, conversation_id: str) -> dict:
+        return await self._get(f"/api/v1/chat/conversations/{conversation_id}")
+
+    async def send_message(self, conversation_id: str, content: str) -> dict:
+        return await self._post(
+            f"/api/v1/chat/conversations/{conversation_id}/messages", json={"content": content}
+        )
+
+    async def delete_conversation(self, conversation_id: str) -> dict:
+        return await self._delete(f"/api/v1/chat/conversations/{conversation_id}")
