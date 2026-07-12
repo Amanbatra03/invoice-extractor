@@ -6,6 +6,9 @@ from api.config import get_settings
 
 st.set_page_config(page_title="Invoice Analyst", page_icon="🧾", layout="wide")
 
+from frontend.theme import inject_theme
+inject_theme()
+
 if not is_authenticated():
     login_page()
     st.stop()
