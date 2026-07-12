@@ -32,11 +32,13 @@ with st.sidebar:
             except Exception as e:
                 st.error(str(e))
 
-qa_tab, extract_tab, compare_tab, batch_tab, dashboard_tab = st.tabs(
-    ["Q&A", "Extract", "Compare", "Batch", "Dashboard"]
+chat_tab, qa_tab, extract_tab, compare_tab, batch_tab, dashboard_tab = st.tabs(
+    ["Chat", "Q&A", "Extract", "Compare", "Batch", "Dashboard"]
 )
 
-from frontend.pages import qa, extract, compare, batch, dashboard
+from frontend.pages import chat, qa, extract, compare, batch, dashboard
+with chat_tab:
+    chat.render(client)
 with qa_tab:
     qa.render(client)
 with extract_tab:
