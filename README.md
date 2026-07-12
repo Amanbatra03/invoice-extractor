@@ -6,6 +6,8 @@ A unified analyst-grade invoice extraction tool with a dual-mode pipeline: a **f
 
 ## Features
 
+- **Conversational Cross-Invoice Chat (API v2)** — persisted multi-turn conversations over all ingested invoices; a routed LangGraph agent condenses follow-up questions against history, answers aggregate questions ("which invoice has the highest total?") from structured extractions, cites file name + page for document details, and sends image invoices to Gemini vision
+- **Liquid Glass UI** — the API-backed Streamlit frontend ships a glassmorphic theme: blurred translucent panels, animated depth backdrop, sprung message entrances, and a typing indicator (motion-safe via `prefers-reduced-motion`)
 - **Agentic RAG for PDFs** — 5-node LangGraph graph: query rewriting → hybrid retrieval → relevance grading → answer generation → self-critique
 - **Hybrid Retrieval** — BM25 (sparse) + ChromaDB (dense) fused via Reciprocal Rank Fusion (RRF)
 - **Whole-Document Schema-Constrained Extraction** — full document fed to the LLM with JSON-mode output locked to the `InvoiceSchema`; no chunk-hunting
