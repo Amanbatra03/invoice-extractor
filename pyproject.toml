@@ -30,7 +30,7 @@ prod = [
     # Auth / Security
     "python-jose[cryptography]>=3.3.0",
     "bcrypt>=4.1.0",
-    "python-magic-bin>=0.4.14",
+    "python-magic-bin>=0.4.14; sys_platform == 'win32'",
     # Queue
     "rq>=1.16.0",
     "redis>=5.0.0",
