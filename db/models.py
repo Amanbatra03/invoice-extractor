@@ -142,6 +142,22 @@ class AuditLog(Base):
     created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
 
 
+class Alert(Base):
+    __tablename__ = "alerts"
+    id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    severity = Column(String(10), nullable=False)
+    source = Column(String(50), nullable=False, index=True)
+    event = Column(String(100), nullable=False)
+    detail = Column(Text, nullable=False)
+    context = Column(JSONB, nullable=True)
+    fingerprint = Column(String(64), nullable=False, index=True)
+    delivery_status = Column(String(20), nullable=False, server_default="pending")
+    delivery_attempts = Column(Integer, nullable=False, server_default="0")
+    last_error = Column(Text, nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+
+
 class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
