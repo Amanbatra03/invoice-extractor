@@ -1,7 +1,6 @@
 # Invoice Extractor — Enterprise Production Design
 
 **Date:** 2026-06-12  
-**Author:** Aman Batra + Claude Code  
 **Status:** Approved — ready for implementation planning
 
 ---
