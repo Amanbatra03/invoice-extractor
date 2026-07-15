@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     # Sentry
     SENTRY_DSN: str = ""
 
+    # Developer alerting
+    ALERT_DISCORD_WEBHOOK_URL: str = ""   # empty -> alerts logged to DB only
+    ALERT_COOLDOWN_SECONDS: int = 600     # Discord suppression window per fingerprint
+
     # App
     ENV: str = "development"
     ALLOWED_ORIGINS: str = "http://localhost:8501"
