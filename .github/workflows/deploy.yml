@@ -1,7 +1,10 @@
 name: Deploy to Render
+# Manual trigger until PROD_DATABASE_URL and RENDER_DEPLOY_HOOK_* secrets are
+# configured; then re-enable automatic deploys with:
+#   push:
+#     branches: [master]
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
