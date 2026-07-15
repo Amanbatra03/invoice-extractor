@@ -13,6 +13,7 @@ def test_settings_load_from_env():
         "GOOGLE_API_KEY": "fake_google_key",
     }
     with patch.dict(os.environ, env_vars):
+        os.environ.pop("ENV", None)  # CI sets ENV=test; the default is under test here
         from api.config import Settings
         s = Settings()
         assert s.DATABASE_URL == "postgresql+asyncpg://test:test@localhost/testdb"
