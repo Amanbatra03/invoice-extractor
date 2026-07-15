@@ -6,6 +6,7 @@ import httpx
 import structlog
 from sqlalchemy import select
 
+from api.services.alerts import raise_alert
 from api.services.webhook_signer import sign_payload
 from db.models import Webhook, WebhookDelivery
 from db.session import get_session_factory
@@ -64,7 +65,7 @@ async def _run_async(webhook_id_str: str, event: str, payload: dict) -> None:
                     delivery.status = "delivered"
                     delivery.delivered_at = datetime.now(timezone.utc)
                     await db.commit()
-                    log.info("webhook.delivered", webhook_id=webhook_id_str, event=event, attempt=attempt + 1)
+                    log.info("webhook.delivered", webhook_id=webhook_id_str, hook_event=event, attempt=attempt + 1)
                     return
                 else:
                     delivery.last_error = f"HTTP {resp.status_code}: {resp.text[:200]}"
@@ -79,4 +80,16 @@ async def _run_async(webhook_id_str: str, event: str, payload: dict) -> None:
             if attempt + 1 >= _MAX_ATTEMPTS:
                 delivery.status = "failed"
                 await db.commit()
-                log.error("webhook.permanently_failed", webhook_id=webhook_id_str, event=event)
+                log.error("webhook.permanently_failed", webhook_id=webhook_id_str, hook_event=event)
+                await raise_alert(
+                    db,
+                    severity="warning",
+                    source="webhook_delivery",
+                    event="webhook.permanently_failed",
+                    detail=delivery.last_error or "delivery failed",
+                    context={
+                        "webhook_id": webhook_id_str,
+                        "event": event,
+                        "attempts": delivery.attempts,
+                    },
+                )
