@@ -6,6 +6,9 @@ A unified analyst-grade invoice extraction tool with a dual-mode pipeline: a **f
 
 ## Features
 
+- **Conversational Cross-Invoice Chat (API v2)** — persisted multi-turn conversations over all ingested invoices; a routed LangGraph agent condenses follow-up questions against history, answers aggregate questions ("which invoice has the highest total?") from structured extractions, cites file name + page for document details, and sends image invoices to Gemini vision
+- **Liquid Glass UI** — the API-backed Streamlit frontend ships a glassmorphic theme: blurred translucent panels, animated depth backdrop, sprung message entrances, and a typing indicator (motion-safe via `prefers-reduced-motion`)
+- **Developer Alerting (API v2)** — worker crashes, unhandled API 500s, and permanently-failed tenant webhooks raise persisted alerts delivered to Discord with retries and cooldown; admin-browsable via `GET /api/v1/alerts`
 - **Agentic RAG for PDFs** — 5-node LangGraph graph: query rewriting → hybrid retrieval → relevance grading → answer generation → self-critique
 - **Hybrid Retrieval** — BM25 (sparse) + ChromaDB (dense) fused via Reciprocal Rank Fusion (RRF)
 - **Whole-Document Schema-Constrained Extraction** — full document fed to the LLM with JSON-mode output locked to the `InvoiceSchema`; no chunk-hunting
@@ -197,6 +200,18 @@ invoice-extractor/
 | Testing | pytest |
 
 ---
+
+## Developer Alerting
+
+Failures anywhere in the stack raise a developer alert: worker job crashes
+(RQ exception handler), unhandled API 500s (global exception handler), and
+tenant webhooks that exhaust their retries. Alerts are persisted to the
+`alerts` table and delivered to Discord as embeds with automatic retries and
+a per-fingerprint cooldown (default 10 min) to prevent alert storms.
+
+- Configure: set `ALERT_DISCORD_WEBHOOK_URL` (leave empty for DB-log-only mode)
+- Browse: `GET /api/v1/alerts` (admin role) with `severity`/`source` filters
+- Migration: `alembic upgrade head` (adds the `alerts` table, revision 0003)
 
 ## Running Tests
 

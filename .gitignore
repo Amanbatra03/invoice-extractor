@@ -5,6 +5,7 @@ data/
 vectorstore/
 *.pkl
 .pytest_cache/
+*.egg-info/
 test_output.txt
 eval/dataset/
 eval/results.md
