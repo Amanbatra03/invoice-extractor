@@ -4,9 +4,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
+from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.config import get_settings
+from api.services.alerts import raise_alert
+from db.session import get_session_factory
 from api.middleware.rate_limiter import limiter
 from api.middleware.request_context import RequestContextMiddleware
 from api.routers import health as health_router
@@ -30,6 +33,8 @@ structlog.configure(
         structlog.dev.ConsoleRenderer() if False else structlog.processors.JSONRenderer(),
     ]
 )
+
+log = structlog.get_logger()
 
 
 def create_app() -> FastAPI:
@@ -60,6 +65,30 @@ def create_app() -> FastAPI:
             content={"data": None, "error": "Rate limit exceeded", "request_id": None},
         ),
     )
+
+    @app.exception_handler(Exception)
+    async def unhandled_exception_handler(request: Request, exc: Exception):
+        request_id = getattr(request.state, "request_id", None)
+        try:
+            async with get_session_factory()() as db:
+                await raise_alert(
+                    db,
+                    severity="error",
+                    source="api",
+                    event="api.unhandled_exception",
+                    detail=str(exc),
+                    context={
+                        "method": request.method,
+                        "path": request.url.path,
+                        "request_id": request_id,
+                    },
+                )
+        except Exception as alert_exc:
+            log.error("alert.handler_failed", error=str(alert_exc))
+        return JSONResponse(
+            status_code=500,
+            content={"data": None, "error": "Internal server error", "request_id": request_id},
+        )
 
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SlowAPIMiddleware)
