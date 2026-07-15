@@ -24,6 +24,7 @@ from api.routers import users as users_router
 from api.routers import api_keys as api_keys_router
 from api.routers import audit as audit_router
 from api.routers import chat as chat_router
+from api.routers import alerts as alerts_router
 
 structlog.configure(
     processors=[
@@ -112,6 +113,7 @@ def create_app() -> FastAPI:
     app.include_router(api_keys_router.router, prefix="/api/v1")
     app.include_router(audit_router.router, prefix="/api/v1")
     app.include_router(chat_router.router, prefix="/api/v1")
+    app.include_router(alerts_router.router, prefix="/api/v1")
 
     from prometheus_fastapi_instrumentator import Instrumentator
     from prometheus_client import Counter, Histogram

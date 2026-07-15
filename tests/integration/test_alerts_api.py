@@ -106,3 +106,76 @@ async def test_exception_handler_survives_alert_failure():
                 resp = await client.get("/api/v1/_boom2")
 
     assert resp.status_code == 500  # alert failure never breaks the 500 envelope
+
+
+def _alert_row():
+    import datetime
+    from db.models import Alert
+    return Alert(
+        id=uuid.uuid4(),
+        severity="error",
+        source="api",
+        event="api.unhandled_exception",
+        detail="kaboom",
+        context={"path": "/api/v1/x"},
+        fingerprint="abc123",
+        delivery_status="delivered",
+        delivery_attempts=1,
+        last_error=None,
+        delivered_at=datetime.datetime.now(datetime.timezone.utc),
+        created_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+
+
+@pytest.mark.asyncio
+async def test_admin_lists_alerts():
+    mock_db = _make_mock_db()
+    row = _alert_row()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [row]
+    mock_db.execute = AsyncMock(return_value=mock_result)
+
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app(mock_db)
+        with patch("api.dependencies.verify_supabase_jwt", return_value=ADMIN_USER):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get(
+                    "/api/v1/alerts",
+                    headers={"Authorization": "Bearer faketoken"},
+                )
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["error"] is None
+    assert len(body["data"]) == 1
+    assert body["data"][0]["event"] == "api.unhandled_exception"
+    assert body["data"][0]["delivery_status"] == "delivered"
+
+
+@pytest.mark.asyncio
+async def test_non_admin_gets_403():
+    mock_db = _make_mock_db()
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app(mock_db)
+        with patch("api.dependencies.verify_supabase_jwt", return_value=VIEWER_USER):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get(
+                    "/api/v1/alerts",
+                    headers={"Authorization": "Bearer faketoken"},
+                )
+    assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_severity_filter_accepted():
+    mock_db = _make_mock_db()
+    with patch.dict(os.environ, _TEST_ENV):
+        app = _build_app(mock_db)
+        with patch("api.dependencies.verify_supabase_jwt", return_value=ADMIN_USER):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+                resp = await client.get(
+                    "/api/v1/alerts?severity=warning&source=worker&limit=10&offset=0",
+                    headers={"Authorization": "Bearer faketoken"},
+                )
+    assert resp.status_code == 200
+    assert resp.json()["data"] == []
