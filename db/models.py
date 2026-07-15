@@ -155,7 +155,7 @@ class Alert(Base):
     delivery_attempts = Column(Integer, nullable=False, server_default="0")
     last_error = Column(Text, nullable=True)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=_now)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=_now, index=True)
 
 
 class Conversation(Base):
