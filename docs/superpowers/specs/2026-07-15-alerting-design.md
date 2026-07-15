@@ -73,14 +73,14 @@ async def raise_alert(
 ) -> Alert | None
 ```
 
-Behavior:
+Behavior (in this order):
 1. Compute `fingerprint = sha256(f"{source}:{event}").hexdigest()[:16]`.
-2. Cooldown check against Redis: `SET alert:cd:{fingerprint} 1 NX EX {ALERT_COOLDOWN_SECONDS}`.
+2. `ALERT_DISCORD_WEBHOOK_URL` empty → insert row with `delivery_status="skipped"`,
+   never touch Redis or the queue, return.
+3. Cooldown check against Redis: `SET alert:cd:{fingerprint} 1 NX EX {ALERT_COOLDOWN_SECONDS}`.
    - Key already present → insert row with `delivery_status="suppressed"`, return.
    - Key absent (set succeeded) → insert row `pending`, enqueue
      `workers.alert_job.run(str(alert.id))` on the existing `invoice-jobs` queue.
-3. `ALERT_DISCORD_WEBHOOK_URL` empty → insert row with `delivery_status="skipped"`,
-   never enqueue.
 4. The entire body is wrapped in `try/except Exception`: on any internal failure
    (DB down, Redis down, enqueue failure) it logs `alert.raise_failed` via structlog and
    returns `None`. **`raise_alert` never raises.**
