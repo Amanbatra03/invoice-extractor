@@ -1,8 +1,8 @@
 import asyncio
+import os
 import streamlit as st
 from frontend.auth import is_authenticated, login_page, logout, get_token
 from frontend.api_client import APIClient
-from api.config import get_settings
 
 st.set_page_config(page_title="Invoice Analyst", page_icon="🧾", layout="wide")
 
@@ -13,8 +13,7 @@ if not is_authenticated():
     login_page()
     st.stop()
 
-settings = get_settings()
-client = APIClient(base_url=settings.API_BASE_URL, token=get_token())
+client = APIClient(base_url=os.getenv("API_BASE_URL", "http://localhost:8000"), token=get_token())
 
 with st.sidebar:
     st.markdown(f"**{st.session_state.get('user_email', '')}**")
