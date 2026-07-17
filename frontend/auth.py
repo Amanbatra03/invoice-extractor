@@ -2,6 +2,10 @@ import os
 import streamlit as st
 from supabase import create_client
 
+_COOKIE_TOKEN = "inv_token"
+_COOKIE_EMAIL = "inv_email"
+_COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
+
 
 def get_supabase_client():
     url = os.environ["SUPABASE_URL"]
@@ -11,62 +15,33 @@ def get_supabase_client():
 
 _LOGIN_CSS = """
 <style>
-.auth-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    min-height: 70vh;
-    padding: 1rem;
-}
-.auth-card {
-    background: rgba(44, 43, 40, 0.60);
-    backdrop-filter: blur(28px) saturate(160%);
-    -webkit-backdrop-filter: blur(28px) saturate(160%);
-    border: 1px solid rgba(255,255,255,0.10);
-    border-top-color: rgba(255,255,255,0.22);
-    border-radius: 22px;
-    box-shadow: 0 12px 40px rgba(0,0,0,0.45);
-    padding: 2.6rem 2.8rem 2.2rem;
-    width: 100%;
-    max-width: 420px;
-}
 .auth-logo {
     font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.9rem;
+    font-size: 1.75rem;
     font-weight: 600;
     letter-spacing: -0.02em;
     color: #ECEAE4;
-    margin-bottom: 0.2rem;
+    margin-bottom: 0.15rem;
     text-align: center;
 }
 .auth-tagline {
     color: #A8A599;
-    font-size: 0.88rem;
+    font-size: 0.85rem;
     text-align: center;
-    margin-bottom: 1.8rem;
+    margin-bottom: 1.6rem;
 }
 </style>
 """
 
-_LOGIN_OPEN = """
-<div class="auth-wrap"><div class="auth-card">
-  <div class="auth-logo">Invoice Analyst</div>
-  <div class="auth-tagline">AI-powered invoice extraction &amp; analysis</div>
-</div></div>
-"""
 
-
-def login_page() -> bool:
+def login_page(controller=None) -> bool:
     st.markdown(_LOGIN_CSS, unsafe_allow_html=True)
 
     _, center, _ = st.columns([1, 2, 1])
     with center:
         st.markdown(
-            '<div class="auth-logo" style="text-align:center;font-family:Fraunces,Georgia,serif;'
-            'font-size:1.75rem;font-weight:600;letter-spacing:-0.02em;color:#ECEAE4;margin-bottom:0.15rem;">Invoice Analyst</div>'
-            '<div style="color:#A8A599;font-size:0.85rem;text-align:center;margin-bottom:1.6rem;">'
-            'AI-powered invoice extraction &amp; analysis</div>',
+            '<div class="auth-logo">Invoice Analyst</div>'
+            '<div class="auth-tagline">AI-powered invoice extraction &amp; analysis</div>',
             unsafe_allow_html=True,
         )
 
@@ -82,8 +57,13 @@ def login_page() -> bool:
                     try:
                         sb = get_supabase_client()
                         result = sb.auth.sign_in_with_password({"email": email, "password": password})
-                        st.session_state["access_token"] = result.session.access_token
-                        st.session_state["user_email"] = result.user.email
+                        token = result.session.access_token
+                        user_email = result.user.email
+                        st.session_state["access_token"] = token
+                        st.session_state["user_email"] = user_email
+                        if controller:
+                            controller.set(_COOKIE_TOKEN, token, max_age=_COOKIE_MAX_AGE)
+                            controller.set(_COOKIE_EMAIL, user_email, max_age=_COOKIE_MAX_AGE)
                         st.rerun()
                     except Exception as exc:
                         st.error(f"Login failed: {exc}")
@@ -119,7 +99,10 @@ def get_token() -> str:
     return st.session_state.get("access_token", "")
 
 
-def logout():
+def logout(controller=None):
+    if controller:
+        controller.remove(_COOKIE_TOKEN)
+        controller.remove(_COOKIE_EMAIL)
     for key in ["access_token", "user_email"]:
         st.session_state.pop(key, None)
     st.rerun()
