@@ -5,8 +5,8 @@ from typing import Callable
 
 import bcrypt
 import structlog
+import jwt as pyjwt
 from fastapi import Depends, HTTPException, Request
-from jose import JWTError, jwt
 from rq import Queue
 from redis import Redis
 from sqlalchemy import select
@@ -31,13 +31,13 @@ class CurrentUser:
 def verify_supabase_jwt(token: str, secret: str) -> dict:
     """Verify a Supabase JWT locally using the project secret."""
     try:
-        return jwt.decode(
+        return pyjwt.decode(
             token,
             secret,
             algorithms=["HS256"],
             options={"verify_aud": False},
         )
-    except JWTError as exc:
+    except pyjwt.PyJWTError as exc:
         raise HTTPException(401, f"Invalid token: {exc}")
 
 
