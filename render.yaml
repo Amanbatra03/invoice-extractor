@@ -56,37 +56,6 @@ services:
           type: web
           property: host
 
-  - type: worker
-    name: invoice-worker
-    runtime: docker
-    dockerfilePath: ./Dockerfile.api
-    plan: free
-    envVars:
-      - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_SERVICE_KEY
-        sync: false
-      - key: DATABASE_URL
-        sync: false
-      - key: GOOGLE_API_KEY
-        sync: false
-      - key: LLM_PROVIDER
-        value: gemini
-      - key: REDIS_URL
-        fromService:
-          name: invoice-redis
-          type: redis
-          property: connectionString
-      - key: LANGCHAIN_TRACING_V2
-        value: "true"
-      - key: LANGCHAIN_API_KEY
-        sync: false
-      - key: LANGCHAIN_PROJECT
-        value: invoice-analyst-prod
-      - key: ALERT_DISCORD_WEBHOOK_URL
-        sync: false
-      - key: ALERT_COOLDOWN_SECONDS
-        value: "600"
 
   - type: redis
     name: invoice-redis
