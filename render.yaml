@@ -3,7 +3,7 @@ services:
     name: invoice-api
     runtime: docker
     dockerfilePath: ./Dockerfile.api
-    plan: starter
+    plan: free
     healthCheckPath: /api/v1/health/ready
     envVars:
       - key: SUPABASE_URL
@@ -44,7 +44,7 @@ services:
     name: invoice-frontend
     runtime: docker
     dockerfilePath: ./Dockerfile.frontend
-    plan: starter
+    plan: free
     envVars:
       - key: SUPABASE_URL
         sync: false
@@ -60,7 +60,7 @@ services:
     name: invoice-worker
     runtime: docker
     dockerfilePath: ./Dockerfile.api
-    plan: starter
+    plan: free
     envVars:
       - key: SUPABASE_URL
         sync: false
@@ -90,6 +90,6 @@ services:
 
   - type: redis
     name: invoice-redis
-    plan: starter
+    plan: free
     maxmemoryPolicy: allkeys-lru
     ipAllowList: []
