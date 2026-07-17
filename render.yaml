@@ -37,8 +37,6 @@ services:
         value: "600"
       - key: ENV
         value: production
-      - key: GIT_SHA
-        fromGitInfo: commitSha
       - key: ALLOWED_ORIGINS
         sync: false
 
@@ -62,7 +60,6 @@ services:
     name: invoice-worker
     runtime: docker
     dockerfilePath: ./Dockerfile.api
-    startCommand: python workers/worker.py
     plan: starter
     envVars:
       - key: SUPABASE_URL
@@ -95,3 +92,4 @@ services:
     name: invoice-redis
     plan: starter
     maxmemoryPolicy: allkeys-lru
+    ipAllowList: []
