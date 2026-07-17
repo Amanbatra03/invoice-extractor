@@ -4,7 +4,13 @@ from frontend.api_client import APIClient
 
 
 def render(client: APIClient):
-    st.subheader("Q&A")
+    st.markdown(
+        "### Q&A"
+        "<br><span style='color:#A8A599;font-size:0.85rem;'>"
+        "Ask a single focused question about one specific invoice.</span>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
     try:
         invoices_data = asyncio.run(client.list_invoices())
         invoices = invoices_data.get("items", [])

@@ -6,7 +6,13 @@ from models.invoice import InvoiceSchema
 
 
 def render(client: APIClient):
-    st.subheader("Extract")
+    st.markdown(
+        "### Extract"
+        "<br><span style='color:#A8A599;font-size:0.85rem;'>"
+        "Pull structured fields (vendor, total, dates, line items) from any invoice.</span>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
     try:
         invoices_data = asyncio.run(client.list_invoices())
         invoices = invoices_data.get("items", [])

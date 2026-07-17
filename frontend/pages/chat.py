@@ -35,7 +35,13 @@ def _render_message(msg: dict) -> None:
 
 
 def render(client: APIClient):
-    st.subheader("Chat")
+    st.markdown(
+        "### Chat"
+        "<br><span style='color:#A8A599;font-size:0.85rem;'>"
+        "Ask questions across all your invoices — follow-up questions welcome.</span>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
     try:
         conversations = _run(client.list_conversations())
     except Exception as e:

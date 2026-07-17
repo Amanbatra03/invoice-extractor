@@ -5,7 +5,13 @@ from frontend.api_client import APIClient
 
 
 def render(client: APIClient):
-    st.subheader("Compare")
+    st.markdown(
+        "### Compare"
+        "<br><span style='color:#A8A599;font-size:0.85rem;'>"
+        "Select 2 or more invoices to get a side-by-side diff — discrepancies highlighted in red.</span>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
     try:
         invoices_data = asyncio.run(client.list_invoices())
         invoices = [i for i in invoices_data.get("items", []) if i["file_type"] == "pdf"]

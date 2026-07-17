@@ -5,7 +5,13 @@ from frontend.api_client import APIClient
 
 
 def render(client: APIClient):
-    st.subheader("Batch Extract")
+    st.markdown(
+        "### Batch Extract"
+        "<br><span style='color:#A8A599;font-size:0.85rem;'>"
+        "Select multiple invoices and extract all fields in one job.</span>",
+        unsafe_allow_html=True,
+    )
+    st.write("")
     try:
         invoices_data = asyncio.run(client.list_invoices(limit=100))
         invoices = invoices_data.get("items", [])
