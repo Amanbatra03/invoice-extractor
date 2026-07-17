@@ -135,3 +135,6 @@ def create_app() -> FastAPI:
     Instrumentator().instrument(app).expose(app, endpoint="/api/v1/metrics")
 
     return app
+
+
+app = create_app()
