@@ -1,4 +1,5 @@
 import asyncio
+import html as _html
 import streamlit as st
 from frontend.api_client import APIClient
 
@@ -20,10 +21,12 @@ def render(client: APIClient):
     if not invoices:
         st.markdown(
             '<div style="border:2px solid #2A2A2A;padding:1.5rem;color:#666;'
-            'font-size:0.78rem;letter-spacing:0.05em;">NO INVOICES FOUND. '
-            '<a href="#" style="color:#F5F500;">GO TO INVOICES PAGE TO UPLOAD.</a></div>',
+            'font-size:0.78rem;letter-spacing:0.05em;">NO INVOICES FOUND.</div>',
             unsafe_allow_html=True,
         )
+        if st.button("GO TO INVOICES PAGE", key="qa_goto_invoices"):
+            st.session_state["nav"] = "invoices"
+            st.rerun()
         return
 
     ready_invoices = [inv for inv in invoices if inv.get("status") == "ready"]
@@ -82,12 +85,13 @@ def render(client: APIClient):
 
         st.markdown(
             f'<div style="font-size:0.65rem;letter-spacing:0.1em;color:#666;margin-top:1.2rem;margin-bottom:0.3rem;">'
-            f'Q: {saved_q.upper()}</div>',
+            f'Q: {_html.escape(saved_q.upper())}</div>',
             unsafe_allow_html=True,
         )
         st.markdown(
-            f'<div style="border:2px solid #F5F500;padding:1.2rem;font-size:0.85rem;'
-            f'color:#F0F0F0;background:#111;line-height:1.6;">{answer}</div>',
+            '<div style="border:2px solid #F5F500;padding:1.2rem;font-size:0.85rem;'
+            'color:#F0F0F0;background:#111;line-height:1.6;white-space:pre-wrap;">'
+            f'{_html.escape(answer)}</div>',
             unsafe_allow_html=True,
         )
 

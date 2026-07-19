@@ -1,9 +1,14 @@
 import streamlit as st
 
+_FONT_LINK = (
+    '<link rel="preconnect" href="https://fonts.googleapis.com">'
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+    '<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700'
+    '&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">'
+)
+
 _THEME_CSS = """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&display=swap');
-
 :root {
     --bg:       #0A0A0A;
     --surface:  #111111;
@@ -17,19 +22,23 @@ _THEME_CSS = """
     --orange:   #FF8C00;
 }
 
-/* ── Reset & base ─────────────────────────────────── */
-html, body, [data-testid="stAppViewContainer"] * {
+/* ── Dark background — all Streamlit root containers ── */
+html, body,
+.stApp,
+[data-testid="stApp"],
+[data-testid="stAppViewContainer"],
+[data-testid="stMain"],
+[data-testid="stMainBlockContainer"],
+.main, .main .block-container {
+    background: #0A0A0A !important;
+    background-color: #0A0A0A !important;
+    color: #F0F0F0 !important;
+}
+
+/* ── Global font ──────────────────────────────────── */
+html, body, *:not(code):not(pre) {
     font-family: 'JetBrains Mono', 'Courier New', monospace !important;
-    color: var(--ink);
     -webkit-font-smoothing: antialiased;
-}
-
-[data-testid="stAppViewContainer"] {
-    background: var(--bg);
-}
-
-[data-testid="stMain"] {
-    background: var(--bg);
 }
 
 /* ── Hide default Streamlit chrome ────────────────── */
@@ -38,10 +47,18 @@ html, body, [data-testid="stAppViewContainer"] * {
     display: none !important;
 }
 
+/* ── Hide Streamlit MPA auto-discovered nav ───────── */
+[data-testid="stSidebarNav"],
+[data-testid="stSidebarNavLink"],
+[data-testid="stSidebarNavItems"],
+section[data-testid="stSidebar"] > div > ul {
+    display: none !important;
+}
+
 /* ── Sidebar ──────────────────────────────────────── */
 [data-testid="stSidebar"] {
-    background: var(--surface) !important;
-    border-right: 2px solid var(--border) !important;
+    background: #111111 !important;
+    border-right: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
     box-shadow: none !important;
     min-width: 220px !important;
@@ -59,7 +76,7 @@ html, body, [data-testid="stAppViewContainer"] * {
     border: none !important;
     border-left: 3px solid transparent !important;
     border-radius: 0 !important;
-    color: var(--ink-dim) !important;
+    color: #666666 !important;
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.82rem !important;
     font-weight: 500 !important;
@@ -75,26 +92,26 @@ html, body, [data-testid="stAppViewContainer"] * {
 
 [data-testid="stSidebar"] .stButton > button:hover {
     background: rgba(245,245,0,0.06) !important;
-    border-left-color: var(--accent) !important;
-    color: var(--ink) !important;
+    border-left-color: #F5F500 !important;
+    color: #F0F0F0 !important;
     transform: none !important;
     box-shadow: none !important;
 }
 
-/* ── Nav active state via data attribute ──────────── */
+/* ── Nav active state ─────────────────────────────── */
 [data-testid="stSidebar"] .nav-active-btn .stButton > button {
     background: rgba(245,245,0,0.10) !important;
-    border-left: 3px solid var(--accent) !important;
-    color: var(--accent) !important;
+    border-left: 3px solid #F5F500 !important;
+    color: #F5F500 !important;
     font-weight: 700 !important;
 }
 
 /* ── Sidebar sign-out button ──────────────────────── */
 [data-testid="stSidebar"] .signout-btn .stButton > button {
     background: transparent !important;
-    border: 1px solid var(--red) !important;
+    border: 1px solid #FF3333 !important;
     border-radius: 0 !important;
-    color: var(--red) !important;
+    color: #FF3333 !important;
     font-size: 0.75rem !important;
     margin: 0 1rem !important;
     width: calc(100% - 2rem) !important;
@@ -103,7 +120,7 @@ html, body, [data-testid="stAppViewContainer"] * {
 }
 
 [data-testid="stSidebar"] .signout-btn .stButton > button:hover {
-    background: var(--red) !important;
+    background: #FF3333 !important;
     color: #0A0A0A !important;
 }
 
@@ -113,12 +130,13 @@ h1, h2, h3 {
     font-weight: 700 !important;
     letter-spacing: -0.01em !important;
     text-transform: uppercase !important;
+    color: #F0F0F0 !important;
 }
 
 /* ── Metrics ──────────────────────────────────────── */
 [data-testid="stMetric"] {
-    background: var(--surface) !important;
-    border: 2px solid var(--border) !important;
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
     padding: 1rem 1.2rem !important;
     box-shadow: none !important;
@@ -128,22 +146,22 @@ h1, h2, h3 {
     font-size: 0.68rem !important;
     letter-spacing: 0.12em !important;
     text-transform: uppercase !important;
-    color: var(--ink-dim) !important;
+    color: #666666 !important;
 }
 
 [data-testid="stMetricValue"] {
     font-family: 'Space Grotesk', monospace !important;
     font-size: 1.8rem !important;
     font-weight: 700 !important;
-    color: var(--ink) !important;
+    color: #F0F0F0 !important;
 }
 
 /* ── Main content buttons ──────────────────────────── */
 [data-testid="stMain"] .stButton > button {
     background: transparent !important;
-    border: 2px solid var(--border) !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
-    color: var(--ink) !important;
+    color: #F0F0F0 !important;
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.78rem !important;
     font-weight: 600 !important;
@@ -155,19 +173,23 @@ h1, h2, h3 {
 }
 
 [data-testid="stMain"] .stButton > button:hover {
-    background: var(--accent) !important;
-    border-color: var(--accent) !important;
+    background: #F5F500 !important;
+    border-color: #F5F500 !important;
     color: #0A0A0A !important;
     transform: none !important;
     box-shadow: none !important;
 }
 
-[data-testid="stMain"] .stButton > button[kind="primary"] {
-    background: var(--accent) !important;
-    border-color: var(--accent) !important;
+/* Primary button — Streamlit uses data-testid="baseButton-primary" */
+[data-testid="baseButton-primary"],
+[data-testid="stMain"] .stButton > button[kind="primary"],
+[data-testid="stMain"] button[data-testid="baseButton-primary"] {
+    background: #F5F500 !important;
+    border-color: #F5F500 !important;
     color: #0A0A0A !important;
 }
 
+[data-testid="baseButton-primary"]:hover,
 [data-testid="stMain"] .stButton > button[kind="primary"]:hover {
     background: #FFFFaa !important;
     border-color: #FFFFaa !important;
@@ -175,59 +197,105 @@ h1, h2, h3 {
 
 /* ── Inputs ────────────────────────────────────────── */
 [data-testid="stTextInput"] input,
-[data-testid="stTextArea"] textarea,
-[data-baseweb="select"] div,
-[data-testid="stSelectbox"] select {
-    background: var(--surface) !important;
-    border: 2px solid var(--border) !important;
+[data-testid="stTextArea"] textarea {
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
-    color: var(--ink) !important;
+    color: #F0F0F0 !important;
     font-family: 'JetBrains Mono', monospace !important;
     font-size: 0.85rem !important;
 }
 
+[data-baseweb="select"] [data-baseweb="input"],
+[data-baseweb="select"] > div {
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
+    border-radius: 0 !important;
+    color: #F0F0F0 !important;
+}
+
 [data-testid="stTextInput"] input:focus,
 [data-testid="stTextArea"] textarea:focus {
-    border-color: var(--accent) !important;
+    border-color: #F5F500 !important;
     box-shadow: none !important;
     outline: none !important;
 }
 
+/* Placeholder text */
+[data-testid="stTextInput"] input::placeholder,
+[data-testid="stTextArea"] textarea::placeholder {
+    color: #444444 !important;
+}
+
+/* ── Selectbox / dropdown ──────────────────────────── */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div {
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
+    border-radius: 0 !important;
+    color: #F0F0F0 !important;
+}
+
 /* ── File uploader ──────────────────────────────────── */
 [data-testid="stFileUploader"] {
-    background: var(--surface) !important;
-    border: 2px dashed var(--border) !important;
+    background: #111111 !important;
+    border: 2px dashed #2A2A2A !important;
     border-radius: 0 !important;
 }
 
 [data-testid="stFileUploader"]:hover {
-    border-color: var(--accent) !important;
+    border-color: #F5F500 !important;
 }
 
 /* ── Dataframes / tables ────────────────────────────── */
 [data-testid="stDataFrame"] {
-    border: 2px solid var(--border) !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
 }
 
 /* ── Expander ───────────────────────────────────────── */
 [data-testid="stExpander"] {
-    border: 2px solid var(--border) !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
-    background: var(--surface) !important;
+    background: #111111 !important;
 }
 
-[data-testid="stExpander"] summary {
-    background: var(--surface) !important;
+[data-testid="stExpander"] details summary,
+[data-testid="stExpanderDetails"] {
+    background: #111111 !important;
     font-size: 0.78rem !important;
     letter-spacing: 0.05em !important;
     text-transform: uppercase !important;
+    color: #F0F0F0 !important;
+}
+
+/* ── Tabs (if any) ──────────────────────────────────── */
+[data-testid="stTabs"] [data-baseweb="tab-list"] {
+    background: transparent !important;
+    border-bottom: 2px solid #2A2A2A !important;
+    gap: 0 !important;
+}
+
+[data-testid="stTabs"] [data-baseweb="tab"] {
+    background: transparent !important;
+    border-radius: 0 !important;
+    color: #666666 !important;
+    font-family: 'JetBrains Mono', monospace !important;
+    font-size: 0.78rem !important;
+    letter-spacing: 0.08em !important;
+    text-transform: uppercase !important;
+    border-bottom: 3px solid transparent !important;
+}
+
+[data-testid="stTabs"] [aria-selected="true"] {
+    color: #F5F500 !important;
+    border-bottom-color: #F5F500 !important;
+    background: transparent !important;
 }
 
 /* ── Chat ───────────────────────────────────────────── */
 [data-testid="stChatMessage"] {
-    background: var(--surface) !important;
-    border: 2px solid var(--border) !important;
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
     padding: 0.85rem 1rem !important;
     margin-bottom: 0.5rem !important;
@@ -235,46 +303,53 @@ h1, h2, h3 {
     backdrop-filter: none !important;
 }
 
-[data-testid="stChatMessage"][data-testid*="user"] {
-    border-left: 3px solid var(--accent) !important;
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {
+    border-left: 3px solid #F5F500 !important;
 }
 
-[data-testid="stChatMessage"][data-testid*="assistant"] {
-    border-left: 3px solid var(--blue) !important;
+[data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) {
+    border-left: 3px solid #4488FF !important;
 }
 
 [data-testid="stChatInput"] > div,
 [data-testid="stChatInput"] {
-    background: var(--surface) !important;
-    border: 2px solid var(--border) !important;
+    background: #111111 !important;
+    border: 2px solid #2A2A2A !important;
     border-radius: 0 !important;
     backdrop-filter: none !important;
+}
+
+/* ── Checkbox ───────────────────────────────────────── */
+[data-testid="stCheckbox"] label {
+    color: #F0F0F0 !important;
+    font-size: 0.82rem !important;
+    font-family: 'JetBrains Mono', monospace !important;
 }
 
 /* ── Download button ────────────────────────────────── */
 .stDownloadButton > button {
     background: transparent !important;
-    border: 2px solid var(--green) !important;
+    border: 2px solid #00FF88 !important;
     border-radius: 0 !important;
-    color: var(--green) !important;
+    color: #00FF88 !important;
     font-size: 0.75rem !important;
     letter-spacing: 0.08em !important;
     text-transform: uppercase !important;
 }
 
 .stDownloadButton > button:hover {
-    background: var(--green) !important;
+    background: #00FF88 !important;
     color: #0A0A0A !important;
 }
 
 /* ── Progress bar ───────────────────────────────────── */
 [data-testid="stProgressBar"] > div > div {
-    background: var(--accent) !important;
+    background: #F5F500 !important;
     border-radius: 0 !important;
 }
 
 [data-testid="stProgressBar"] > div {
-    background: var(--border) !important;
+    background: #2A2A2A !important;
     border-radius: 0 !important;
 }
 
@@ -282,20 +357,26 @@ h1, h2, h3 {
 [data-testid="stAlert"] {
     border-radius: 0 !important;
     border-left-width: 4px !important;
+    background: #111111 !important;
+}
+
+/* ── Spinner ───────────────────────────────────────── */
+[data-testid="stSpinner"] {
+    color: #F5F500 !important;
 }
 
 /* ── Dividers ───────────────────────────────────────── */
 hr {
-    border-color: var(--border) !important;
+    border-color: #2A2A2A !important;
     border-width: 1px 0 0 0 !important;
     margin: 0.75rem 0 !important;
 }
 
 /* ── Scrollbar ──────────────────────────────────────── */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: var(--bg); }
-::-webkit-scrollbar-thumb { background: var(--border); }
-::-webkit-scrollbar-thumb:hover { background: var(--ink-dim); }
+::-webkit-scrollbar-track { background: #0A0A0A; }
+::-webkit-scrollbar-thumb { background: #2A2A2A; }
+::-webkit-scrollbar-thumb:hover { background: #666666; }
 
 /* ── Custom components ──────────────────────────────── */
 .brut-header {
@@ -304,15 +385,15 @@ hr {
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--ink);
-    border-bottom: 2px solid var(--accent);
+    color: #F0F0F0;
+    border-bottom: 2px solid #F5F500;
     padding-bottom: 0.5rem;
     margin-bottom: 1.2rem;
 }
 
 .brut-sub {
     font-size: 0.72rem;
-    color: var(--ink-dim);
+    color: #666666;
     letter-spacing: 0.1em;
     text-transform: uppercase;
     margin-top: 0.2rem;
@@ -320,8 +401,8 @@ hr {
 }
 
 .invoice-card {
-    background: var(--surface);
-    border: 2px solid var(--border);
+    background: #111111;
+    border: 2px solid #2A2A2A;
     padding: 0.85rem 1rem;
     margin-bottom: 0.4rem;
     display: flex;
@@ -331,7 +412,7 @@ hr {
 }
 
 .invoice-card:hover {
-    border-color: var(--accent);
+    border-color: #F5F500;
 }
 
 .badge {
@@ -344,10 +425,10 @@ hr {
     border: 1px solid;
 }
 
-.badge-ready   { color: var(--green);  border-color: var(--green);  }
-.badge-pending { color: var(--orange); border-color: var(--orange); }
-.badge-failed  { color: var(--red);    border-color: var(--red);    }
-.badge-running { color: var(--blue);   border-color: var(--blue);   }
+.badge-ready   { color: #00FF88; border-color: #00FF88; }
+.badge-pending { color: #FF8C00; border-color: #FF8C00; }
+.badge-failed  { color: #FF3333; border-color: #FF3333; }
+.badge-running { color: #4488FF; border-color: #4488FF; }
 
 /* ── Page entry animation ─── */
 @media (prefers-reduced-motion: no-preference) {
@@ -373,7 +454,7 @@ hr {
 .typing-dots { display: inline-flex; gap: 5px; padding: 4px 2px; }
 .typing-dots span {
     width: 6px; height: 6px;
-    background: var(--ink-dim);
+    background: #666666;
     display: inline-block;
     animation: dotBlink 0.9s step-start infinite;
 }
@@ -389,4 +470,6 @@ hr {
 
 
 def inject_theme() -> None:
+    # Font via <link> (more reliable than @import in injected <style>)
+    st.markdown(_FONT_LINK, unsafe_allow_html=True)
     st.markdown(_THEME_CSS, unsafe_allow_html=True)

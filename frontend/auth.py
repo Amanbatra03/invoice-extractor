@@ -8,8 +8,11 @@ _COOKIE_MAX_AGE = 60 * 60 * 24 * 7  # 7 days
 
 
 def get_supabase_client():
-    url = os.environ["SUPABASE_URL"]
-    key = os.environ["SUPABASE_ANON_KEY"]
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_ANON_KEY")
+    if not url or not key:
+        st.error("MISSING SUPABASE CONFIGURATION — CHECK ENVIRONMENT VARIABLES.")
+        st.stop()
     return create_client(url, key)
 
 
@@ -60,6 +63,9 @@ def login_page(controller=None) -> bool:
                     try:
                         sb = get_supabase_client()
                         result = sb.auth.sign_in_with_password({"email": email, "password": password})
+                        if not result.session:
+                            st.error("CONFIRM YOUR EMAIL ADDRESS FIRST, THEN SIGN IN.")
+                            st.stop()
                         token = result.session.access_token
                         user_email = result.user.email
                         st.session_state["access_token"] = token

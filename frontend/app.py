@@ -18,6 +18,7 @@ if not st.session_state.get("access_token"):
     if stored_token:
         st.session_state["access_token"] = stored_token
         st.session_state["user_email"] = stored_email or ""
+        st.rerun()
 
 if not is_authenticated():
     login_page(controller)
@@ -86,11 +87,15 @@ with st.sidebar:
 from frontend.pages import invoices, chat, qa, extract, compare, batch
 
 page = st.session_state["nav"]
-{
+_page_fns = {
     "invoices": invoices.render,
     "chat":     chat.render,
     "qa":       qa.render,
     "extract":  extract.render,
     "compare":  compare.render,
     "batch":    batch.render,
-}[page](client)
+}
+if page not in _page_fns:
+    st.session_state["nav"] = "invoices"
+    st.rerun()
+_page_fns[page](client)

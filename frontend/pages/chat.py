@@ -108,7 +108,7 @@ def render(client: APIClient):
             try:
                 detail = _run(client.get_conversation(conv_id))
             except Exception as e:
-                st.error(str(e))
+                st.error(f"COULD NOT LOAD CONVERSATION — IT MAY HAVE BEEN DELETED. ({e})")
                 st.session_state.pop("chat_conversation_id", None)
                 return
             for msg in detail.get("messages", []):

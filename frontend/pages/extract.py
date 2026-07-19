@@ -2,7 +2,12 @@ import asyncio
 import pandas as pd
 import streamlit as st
 from frontend.api_client import APIClient
-from models.invoice import InvoiceSchema
+try:
+    from models.invoice import InvoiceSchema
+except ModuleNotFoundError:
+    import sys, pathlib
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[2]))
+    from models.invoice import InvoiceSchema
 
 _STATUS_COLOR = {
     "ready":     "#00FF88",
@@ -77,21 +82,34 @@ def render(client: APIClient):
 
     extract_col, _ = st.columns([2, 5])
     with extract_col:
-        if st.button("EXTRACT FIELDS", type="primary", disabled=not can_extract):
+        if st.button("EXTRACT FIELDS", type="primary", disabled=not can_extract, key="extract_btn"):
             with st.spinner("EXTRACTING..."):
                 try:
                     job = asyncio.run(client.run_extraction(selected_id))
-                    st.session_state["ext_job_id"] = job.get("job_id", "")
-                    st.info(f"QUEUED — JOB {job.get('job_id', '')}. RESULTS APPEAR BELOW WHEN READY.")
+                    job_id = job.get("job_id", "")
+                    st.session_state["ext_job_id"] = job_id
+                    st.session_state["ext_job_invoice"] = selected_id
                 except Exception as e:
                     st.error(str(e))
+
+    # Persistent job queued message
+    if (
+        st.session_state.get("ext_job_id")
+        and st.session_state.get("ext_job_invoice") == selected_id
+    ):
+        st.info(
+            f"QUEUED — JOB {st.session_state['ext_job_id']}. RESULTS APPEAR BELOW WHEN READY."
+        )
 
     st.divider()
 
     # Try to load existing extraction
     try:
         ext = asyncio.run(client.get_extraction(selected_id))
-        schema = InvoiceSchema.model_validate(ext["schema_json"])
+        schema_json = ext.get("schema_json") if ext else None
+        if not schema_json:
+            raise LookupError("no extraction")
+        schema = InvoiceSchema.model_validate(schema_json)
 
         c1, c2, c3, c4 = st.columns(4)
         c1.metric("TOTAL", f"{schema.total_amount:,.2f}" if schema.total_amount else "—")
@@ -144,9 +162,19 @@ def render(client: APIClient):
                 use_container_width=True,
             )
 
-    except Exception:
+    except LookupError:
         st.markdown(
             '<div style="color:#444;font-size:0.82rem;letter-spacing:0.04em;padding:0.5rem 0;">'
             'NO EXTRACTION YET — CLICK EXTRACT FIELDS ABOVE.</div>',
             unsafe_allow_html=True,
         )
+    except Exception as e:
+        err = str(e)
+        if "404" in err or "not found" in err.lower():
+            st.markdown(
+                '<div style="color:#444;font-size:0.82rem;letter-spacing:0.04em;padding:0.5rem 0;">'
+                'NO EXTRACTION YET — CLICK EXTRACT FIELDS ABOVE.</div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            st.error(f"FAILED TO LOAD EXTRACTION: {e}")
