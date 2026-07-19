@@ -15,20 +15,23 @@ def get_supabase_client():
 
 _LOGIN_CSS = """
 <style>
-.auth-logo {
-    font-family: 'Fraunces', Georgia, serif;
-    font-size: 1.75rem;
-    font-weight: 600;
-    letter-spacing: -0.02em;
-    color: #ECEAE4;
-    margin-bottom: 0.15rem;
+.brut-login-title {
+    font-family: 'Space Grotesk', monospace;
+    font-size: 2.2rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: #F5F500;
     text-align: center;
+    margin-bottom: 0.2rem;
 }
-.auth-tagline {
-    color: #A8A599;
-    font-size: 0.85rem;
+.brut-login-sub {
+    font-size: 0.7rem;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    color: #666;
     text-align: center;
-    margin-bottom: 1.6rem;
+    margin-bottom: 2rem;
 }
 </style>
 """
@@ -40,19 +43,19 @@ def login_page(controller=None) -> bool:
     _, center, _ = st.columns([1, 2, 1])
     with center:
         st.markdown(
-            '<div class="auth-logo">Invoice Analyst</div>'
-            '<div class="auth-tagline">AI-powered invoice extraction &amp; analysis</div>',
+            '<div class="brut-login-title">INVOICE ANALYST</div>'
+            '<div class="brut-login-sub">AI-POWERED INVOICE EXTRACTION &amp; ANALYSIS</div>',
             unsafe_allow_html=True,
         )
 
-        sign_in_tab, sign_up_tab = st.tabs(["Sign In", "Sign Up"])
+        sign_in_tab, sign_up_tab = st.tabs(["SIGN IN", "SIGN UP"])
 
         with sign_in_tab:
-            email = st.text_input("Email", key="signin_email", placeholder="you@company.com")
-            password = st.text_input("Password", type="password", key="signin_pwd")
-            if st.button("Sign In", type="primary", use_container_width=True, key="signin_btn"):
+            email = st.text_input("EMAIL", key="signin_email", placeholder="you@company.com")
+            password = st.text_input("PASSWORD", type="password", key="signin_pwd")
+            if st.button("SIGN IN", type="primary", use_container_width=True, key="signin_btn"):
                 if not email.strip() or not password.strip():
-                    st.error("Enter your email and password.")
+                    st.error("ENTER YOUR EMAIL AND PASSWORD.")
                 else:
                     try:
                         sb = get_supabase_client()
@@ -66,27 +69,27 @@ def login_page(controller=None) -> bool:
                             controller.set(_COOKIE_EMAIL, user_email, max_age=_COOKIE_MAX_AGE)
                         st.rerun()
                     except Exception as exc:
-                        st.error(f"Login failed: {exc}")
+                        st.error(f"LOGIN FAILED: {exc}")
 
         with sign_up_tab:
-            new_email = st.text_input("Email", key="signup_email", placeholder="you@company.com")
-            new_pwd = st.text_input("Password", type="password", key="signup_pwd",
+            new_email = st.text_input("EMAIL", key="signup_email", placeholder="you@company.com")
+            new_pwd = st.text_input("PASSWORD", type="password", key="signup_pwd",
                                     help="At least 6 characters")
-            new_pwd2 = st.text_input("Confirm password", type="password", key="signup_pwd2")
-            if st.button("Create account", type="primary", use_container_width=True, key="signup_btn"):
+            new_pwd2 = st.text_input("CONFIRM PASSWORD", type="password", key="signup_pwd2")
+            if st.button("CREATE ACCOUNT", type="primary", use_container_width=True, key="signup_btn"):
                 if not new_email.strip() or not new_pwd.strip():
-                    st.error("Fill in all fields.")
+                    st.error("FILL IN ALL FIELDS.")
                 elif new_pwd != new_pwd2:
-                    st.error("Passwords don't match.")
+                    st.error("PASSWORDS DON'T MATCH.")
                 elif len(new_pwd) < 6:
-                    st.error("Password must be at least 6 characters.")
+                    st.error("PASSWORD MUST BE AT LEAST 6 CHARACTERS.")
                 else:
                     try:
                         sb = get_supabase_client()
                         sb.auth.sign_up({"email": new_email, "password": new_pwd})
-                        st.success("Account created — check your email to confirm, then sign in.")
+                        st.success("ACCOUNT CREATED — CHECK YOUR EMAIL TO CONFIRM, THEN SIGN IN.")
                     except Exception as exc:
-                        st.error(f"Sign-up failed: {exc}")
+                        st.error(f"SIGN-UP FAILED: {exc}")
 
     return False
 
