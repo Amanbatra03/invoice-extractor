@@ -83,17 +83,33 @@ async def get_current_user(
 
         if settings.SUPABASE_JWT_SECRET:
             # Local verification (fast; also the test path — tests patch this function)
-            payload = verify_supabase_jwt(token, settings.SUPABASE_JWT_SECRET)
-            sub = payload.get("sub", "")
-            email = payload.get("email", "")
-            app_meta = payload.get("app_metadata", {})
-            tenant_id = app_meta.get("tenant_id", "")
-            role = app_meta.get("role", "viewer")
+            try:
+                payload = verify_supabase_jwt(token, settings.SUPABASE_JWT_SECRET)
+                sub = payload.get("sub", "")
+                email = payload.get("email", "")
+                app_meta = payload.get("app_metadata", {})
+                tenant_id = app_meta.get("tenant_id", "")
+                role = app_meta.get("role", "viewer")
 
-            if tenant_id:
-                # JWT already carries tenant claims (test mocks / custom-provisioned)
-                return CurrentUser(id=sub, tenant_id=tenant_id, role=role, email=email)
-            # else fall through to DB lookup below
+                if tenant_id:
+                    # JWT already carries tenant claims (test mocks / custom-provisioned)
+                    return CurrentUser(id=sub, tenant_id=tenant_id, role=role, email=email)
+                # else fall through to DB lookup below
+            except HTTPException:
+                # Local verification failed (wrong secret / alg mismatch) — fall back to API
+                log.warning("jwt.local_verify_failed_fallback_to_api")
+                try:
+                    sb_user = await _verify_via_supabase_api(
+                        settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, token
+                    )
+                    if not sb_user:
+                        raise HTTPException(401, "Invalid token")
+                    sub = str(sb_user.id)
+                    email = sb_user.email or ""
+                except HTTPException:
+                    raise
+                except Exception as exc:
+                    raise HTTPException(401, f"Invalid token: {exc}")
         else:
             # No secret configured → verify via Supabase Auth API
             try:
