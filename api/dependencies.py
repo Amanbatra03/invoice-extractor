@@ -52,7 +52,7 @@ async def _verify_via_db(db: AsyncSession, token: str) -> tuple[str, str]:
         payload = pyjwt.decode(
             token,
             options={"verify_signature": False},
-            algorithms=["HS256", "RS256"],
+            algorithms=["HS256", "RS256", "ES256"],
         )
     except pyjwt.DecodeError:
         raise HTTPException(401, "Malformed token")

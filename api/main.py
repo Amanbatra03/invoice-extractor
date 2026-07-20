@@ -1,3 +1,14 @@
+# Render free tier cannot route IPv6. asyncpg and httpx both reach DNS via
+# socket.getaddrinfo (asyncio runs it in a thread executor). Filtering IPv6
+# results here prevents ENETUNREACH on DB and Supabase storage connections.
+import socket as _socket
+_orig_getaddrinfo = _socket.getaddrinfo
+def _ipv4_preferred(host, port, *a, **kw):
+    results = _orig_getaddrinfo(host, port, *a, **kw)
+    ipv4 = [r for r in results if r[0] == _socket.AF_INET]
+    return ipv4 if ipv4 else results
+_socket.getaddrinfo = _ipv4_preferred
+
 import structlog
 import structlog.contextvars
 from fastapi import FastAPI
