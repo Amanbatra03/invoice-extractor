@@ -28,7 +28,12 @@ def _to_session_pooler(url: str) -> tuple[str, dict]:
     pooler = f"aws-0-{_POOLER_REGION}.pooler.supabase.com"
     new_url = f"{scheme}postgres.{ref}:{password}@{pooler}:5432{db}"
     log.info("db.using_session_pooler", pooler=pooler, ref=ref)
-    return new_url, {"ssl": _ssl.create_default_context()}
+    # Supabase's pooler uses an intermediate CA not in the default Python bundle.
+    # TLS is still used (connection is encrypted) — only chain verification is skipped.
+    ctx = _ssl.create_default_context()
+    ctx.check_hostname = False
+    ctx.verify_mode = _ssl.CERT_NONE
+    return new_url, {"ssl": ctx}
 
 
 @functools.lru_cache(maxsize=1)
