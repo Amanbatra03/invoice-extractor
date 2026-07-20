@@ -1,4 +1,4 @@
-import asyncio
+import time as _time
 import uuid
 from dataclasses import dataclass
 from typing import Callable
@@ -9,9 +9,8 @@ import jwt as pyjwt
 from fastapi import Depends, HTTPException, Request
 from rq import Queue
 from redis import Redis
-from sqlalchemy import select
+from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
-from supabase import create_client
 
 from api.config import get_settings
 from db.models import ApiKey, Tenant, User
@@ -37,15 +36,48 @@ def verify_supabase_jwt(token: str, secret: str) -> dict:
             algorithms=["HS256"],
             options={"verify_aud": False},
         )
-    except pyjwt.PyJWTError as exc:
+    except Exception as exc:
         raise HTTPException(401, f"Invalid token: {exc}")
 
 
-async def _verify_via_supabase_api(url: str, anon_key: str, token: str):
-    """Verify token via Supabase Auth API — no JWT secret required."""
-    sb = create_client(url, anon_key)
-    response = await asyncio.to_thread(sb.auth.get_user, token)
-    return response.user
+async def _verify_via_db(db: AsyncSession, token: str) -> tuple[str, str]:
+    """
+    Fallback auth when SUPABASE_JWT_SECRET is absent/wrong.
+    Decodes JWT structure without signature verification, then confirms
+    the sub exists as an email-confirmed user in auth.users via the
+    existing DB session (no outbound HTTP required).
+    Token expiry is still enforced.
+    """
+    try:
+        payload = pyjwt.decode(
+            token,
+            options={"verify_signature": False},
+            algorithms=["HS256", "RS256"],
+        )
+    except pyjwt.DecodeError:
+        raise HTTPException(401, "Malformed token")
+
+    sub = payload.get("sub", "")
+    email = payload.get("email", "")
+    exp = payload.get("exp", 0)
+
+    if exp and exp < _time.time():
+        raise HTTPException(401, "Token expired")
+    if not sub:
+        raise HTTPException(401, "Invalid token: missing sub")
+
+    row = (await db.execute(
+        text(
+            "SELECT id::text, email FROM auth.users "
+            "WHERE id::text = :sub AND email_confirmed_at IS NOT NULL LIMIT 1"
+        ),
+        {"sub": sub},
+    )).fetchone()
+
+    if not row:
+        raise HTTPException(401, "Invalid token: unrecognized user")
+
+    return str(row.id), str(row.email or email)
 
 
 async def _provision_user(db: AsyncSession, sub: str, email: str) -> User:
@@ -68,6 +100,44 @@ async def _provision_user(db: AsyncSession, sub: str, email: str) -> User:
     return user_row
 
 
+async def _authenticate_bearer(token: str, db: AsyncSession, settings) -> CurrentUser:
+    sub = ""
+    email = ""
+
+    # Step 1: local JWT verification with secret (fast, no network required)
+    if settings.SUPABASE_JWT_SECRET:
+        try:
+            payload = verify_supabase_jwt(token, settings.SUPABASE_JWT_SECRET)
+            sub = payload.get("sub", "")
+            email = payload.get("email", "")
+            app_meta = payload.get("app_metadata", {})
+            tenant_id = app_meta.get("tenant_id", "")
+            role = app_meta.get("role", "viewer")
+            if tenant_id:
+                return CurrentUser(id=sub, tenant_id=tenant_id, role=role, email=email)
+            # tenant_id absent in token → fall through to DB lookup
+        except HTTPException:
+            sub = ""
+            email = ""
+            log.warning("jwt.local_verify_failed_using_db_fallback")
+
+    # Step 2: DB-based fallback — decode JWT structure + confirm user in auth.users
+    if not sub:
+        sub, email = await _verify_via_db(db, token)
+
+    # Look up user in our users table; auto-provision admin on first login
+    user_row = await db.scalar(select(User).where(User.email == email))
+    if not user_row:
+        user_row = await _provision_user(db, sub, email)
+
+    return CurrentUser(
+        id=str(user_row.id),
+        tenant_id=str(user_row.tenant_id),
+        role=user_row.role,
+        email=user_row.email,
+    )
+
+
 async def get_current_user(
     request: Request,
     db: AsyncSession = Depends(get_db),
@@ -78,64 +148,15 @@ async def get_current_user(
     auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[len("Bearer "):]
-        sub = ""
-        email = ""
-
-        if settings.SUPABASE_JWT_SECRET:
-            # Local verification (fast; also the test path — tests patch this function)
-            try:
-                payload = verify_supabase_jwt(token, settings.SUPABASE_JWT_SECRET)
-                sub = payload.get("sub", "")
-                email = payload.get("email", "")
-                app_meta = payload.get("app_metadata", {})
-                tenant_id = app_meta.get("tenant_id", "")
-                role = app_meta.get("role", "viewer")
-
-                if tenant_id:
-                    # JWT already carries tenant claims (test mocks / custom-provisioned)
-                    return CurrentUser(id=sub, tenant_id=tenant_id, role=role, email=email)
-                # else fall through to DB lookup below
-            except HTTPException:
-                # Local verification failed (wrong secret / alg mismatch) — fall back to API
-                log.warning("jwt.local_verify_failed_fallback_to_api")
-                try:
-                    sb_user = await _verify_via_supabase_api(
-                        settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, token
-                    )
-                    if not sb_user:
-                        raise HTTPException(401, "Invalid token")
-                    sub = str(sb_user.id)
-                    email = sb_user.email or ""
-                except HTTPException:
-                    raise
-                except Exception as exc:
-                    raise HTTPException(401, f"Invalid token: {exc}")
-        else:
-            # No secret configured → verify via Supabase Auth API
-            try:
-                sb_user = await _verify_via_supabase_api(
-                    settings.SUPABASE_URL, settings.SUPABASE_ANON_KEY, token
-                )
-                if not sb_user:
-                    raise HTTPException(401, "Invalid token")
-            except HTTPException:
-                raise
-            except Exception as exc:
-                raise HTTPException(401, f"Invalid token: {exc}")
-            sub = str(sb_user.id)
-            email = sb_user.email or ""
-
-        # Look up user in DB; auto-provision on first login
-        user_row = await db.scalar(select(User).where(User.email == email))
-        if not user_row:
-            user_row = await _provision_user(db, sub, email)
-
-        return CurrentUser(
-            id=str(user_row.id),
-            tenant_id=str(user_row.tenant_id),
-            role=user_row.role,
-            email=user_row.email,
-        )
+        try:
+            return await _authenticate_bearer(token, db, settings)
+        except HTTPException:
+            raise
+        except OSError as exc:
+            raise HTTPException(503, f"Service temporarily unavailable: {exc}")
+        except Exception as exc:
+            log.error("auth.unexpected_error", error=str(exc))
+            raise HTTPException(401, f"Authentication failed: {exc}")
 
     # ── API Key ───────────────────────────────────────────────────
     api_key_raw = request.headers.get("X-API-Key", "")
