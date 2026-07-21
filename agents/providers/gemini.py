@@ -13,7 +13,11 @@ log = structlog.get_logger()
 class GeminiProvider:
     def __init__(self):
         settings = get_settings()
-        self._client = genai.Client(api_key=settings.GOOGLE_API_KEY)
+        from google.genai import types as _gt
+        self._client = genai.Client(
+            api_key=settings.GOOGLE_API_KEY,
+            http_options=_gt.HttpOptions(api_version="v1"),
+        )
         self._model = settings.GEMINI_MODEL
         self._embed_model = settings.GEMINI_EMBEDDING_MODEL
 
