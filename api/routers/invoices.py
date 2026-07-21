@@ -3,12 +3,13 @@ import uuid
 from datetime import datetime, timezone
 
 import structlog
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, UploadFile, File, Query
 
-from api.dependencies import get_current_user, require_roles, CurrentUser, get_queue
+from api.dependencies import get_current_user, require_roles, CurrentUser
 from api.schemas.invoice import InvoiceOut, InvoiceListResponse
 from api.services.storage import upload_file, get_signed_url, delete_file, sha256_file
 from api.supabase_client import get_service_client
+from workers.ingest_job import run_bg as _ingest_bg
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 log = structlog.get_logger()
@@ -37,20 +38,11 @@ def _validate_upload(file: UploadFile, content: bytes) -> str:
     return _detect_file_type(file.filename or "", content)
 
 
-async def _enqueue_ingest(invoice_id: uuid.UUID, job_id: uuid.UUID, queue) -> None:
-    queue.enqueue(
-        "workers.ingest_job.run",
-        str(invoice_id),
-        str(job_id),
-        job_timeout=300,
-    )
-
-
 @router.post("/upload", response_model=dict)
 async def upload_invoice(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     user: CurrentUser = Depends(require_roles("admin", "analyst", "api_user")),
-    queue=Depends(get_queue),
 ):
     content = await file.read()
     file_type = _validate_upload(file, content)
@@ -104,7 +96,7 @@ async def upload_invoice(
     job_res = await asyncio.to_thread(_insert_job)
     job_id = job_res.data[0]["id"]
 
-    await _enqueue_ingest(uuid.UUID(invoice_id), uuid.UUID(job_id), queue)
+    background_tasks.add_task(_ingest_bg, invoice_id, job_id)
     log.info("invoice.uploaded", invoice_id=invoice_id, tenant_id=user.tenant_id)
     return {
         "data": {"invoice_id": invoice_id, "job_id": job_id, "status": "ingesting"},
