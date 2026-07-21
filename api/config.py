@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     # LLM configuration
     LLM_PROVIDER: str = "gemini"          # "gemini" | "ollama_gemma"
     GEMINI_MODEL: str = "gemini-2.0-flash"
-    GEMINI_EMBEDDING_MODEL: str = "gemini-embedding-exp-03-07"
+    GEMINI_EMBEDDING_MODEL: str = "text-embedding-004"
     GEMMA_MODEL: str = "gemma3:4b"
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
