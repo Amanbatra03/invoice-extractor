@@ -1,13 +1,11 @@
+import asyncio
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import require_roles, CurrentUser
 from api.schemas.job import JobOut
-from db.models import Job
-from db.session import get_db
+from api.supabase_client import get_service_client
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -16,17 +14,15 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 async def get_job(
     job_id: uuid.UUID,
     user: CurrentUser = Depends(require_roles("admin", "analyst", "viewer", "api_user")),
-    db: AsyncSession = Depends(get_db),
 ):
-    job = await db.scalar(
-        select(Job).where(
-            Job.id == job_id,
-            Job.tenant_id == uuid.UUID(user.tenant_id),
-        )
-    )
-    if not job:
+    def _get():
+        c = get_service_client()
+        return c.table("jobs").select("*").eq("id", str(job_id)).eq("tenant_id", user.tenant_id).limit(1).execute()
+
+    res = await asyncio.to_thread(_get)
+    if not res.data:
         raise HTTPException(404, "Job not found")
-    return {"data": JobOut.model_validate(job), "error": None, "request_id": None}
+    return {"data": JobOut.model_validate(res.data[0]), "error": None, "request_id": None}
 
 
 @router.get("", response_model=dict)
@@ -35,20 +31,20 @@ async def list_jobs(
     type: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
     user: CurrentUser = Depends(require_roles("admin", "analyst")),
-    db: AsyncSession = Depends(get_db),
 ):
-    q = (
-        select(Job)
-        .where(Job.tenant_id == uuid.UUID(user.tenant_id))
-        .order_by(Job.created_at.desc())
-    )
-    if status:
-        q = q.where(Job.status == status)
-    if type:
-        q = q.where(Job.type == type)
-    rows = (await db.execute(q.limit(limit))).scalars().all()
+    def _list():
+        c = get_service_client()
+        q = c.table("jobs").select("*").eq("tenant_id", user.tenant_id).order("created_at", desc=True)
+        if status:
+            q = q.eq("status", status)
+        if type:
+            q = q.eq("type", type)
+        return q.limit(limit).execute()
+
+    res = await asyncio.to_thread(_list)
+    rows = res.data or []
     return {
-        "data": [JobOut.model_validate(r) for r in rows],
+        "data": {"items": [JobOut.model_validate(r) for r in rows]},
         "error": None,
         "request_id": None,
     }

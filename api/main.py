@@ -19,8 +19,7 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from api.config import get_settings
-from api.services.alerts import raise_alert
-from db.session import get_session_factory
+from api.supabase_client import get_jwks_client
 from api.middleware.rate_limiter import limiter
 from api.middleware.request_context import RequestContextMiddleware
 from api.routers import health as health_router
@@ -81,26 +80,26 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def unhandled_exception_handler(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", None)
-        try:
-            async with get_session_factory()() as db:
-                await raise_alert(
-                    db,
-                    severity="error",
-                    source="api",
-                    event="api.unhandled_exception",
-                    detail=str(exc),
-                    context={
-                        "method": request.method,
-                        "path": request.url.path,
-                        "request_id": request_id,
-                    },
-                )
-        except Exception as alert_exc:
-            log.error("alert.handler_failed", error=str(alert_exc))
+        log.error(
+            "api.unhandled_exception",
+            error=str(exc),
+            method=request.method,
+            path=request.url.path,
+            request_id=request_id,
+        )
         return JSONResponse(
             status_code=500,
             content={"data": None, "error": "Internal server error", "request_id": request_id},
         )
+
+    @app.on_event("startup")
+    async def _warmup():
+        try:
+            import asyncio
+            await asyncio.to_thread(get_jwks_client)
+            log.info("api.jwks_warmed")
+        except Exception as exc:
+            log.warning("api.jwks_warmup_failed", error=str(exc))
 
     app.add_middleware(RequestContextMiddleware)
     app.add_middleware(SlowAPIMiddleware)

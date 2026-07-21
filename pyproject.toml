@@ -28,8 +28,7 @@ prod = [
     "alembic>=1.13.0",
     "pgvector>=0.3.0",
     # Auth / Security
-    "PyJWT>=2.8.0",
-    "python-jose[cryptography]>=3.3.0",
+    "PyJWT[cryptography]>=2.8.0",
     "bcrypt>=4.1.0",
     "python-magic-bin>=0.4.14; sys_platform == 'win32'",
     # Queue

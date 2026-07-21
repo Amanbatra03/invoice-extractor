@@ -4,14 +4,11 @@ from datetime import datetime, timezone
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
-from sqlalchemy import select, func
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.dependencies import get_current_user, require_roles, CurrentUser, get_queue
-from api.schemas.invoice import InvoiceOut, InvoiceUploadResponse, InvoiceListResponse
+from api.schemas.invoice import InvoiceOut, InvoiceListResponse
 from api.services.storage import upload_file, get_signed_url, delete_file, sha256_file
-from db.models import Invoice, Job
-from db.session import get_db
+from api.supabase_client import get_service_client
 
 router = APIRouter(prefix="/invoices", tags=["invoices"])
 log = structlog.get_logger()
@@ -40,69 +37,77 @@ def _validate_upload(file: UploadFile, content: bytes) -> str:
     return _detect_file_type(file.filename or "", content)
 
 
-async def _enqueue_ingest(invoice_id: uuid.UUID, job_id: uuid.UUID, queue) -> uuid.UUID:
+async def _enqueue_ingest(invoice_id: uuid.UUID, job_id: uuid.UUID, queue) -> None:
     queue.enqueue(
         "workers.ingest_job.run",
         str(invoice_id),
         str(job_id),
         job_timeout=300,
     )
-    return job_id
 
 
 @router.post("/upload", response_model=dict)
 async def upload_invoice(
     file: UploadFile = File(...),
     user: CurrentUser = Depends(require_roles("admin", "analyst", "api_user")),
-    db: AsyncSession = Depends(get_db),
     queue=Depends(get_queue),
 ):
     content = await file.read()
     file_type = _validate_upload(file, content)
     sha = await asyncio.to_thread(sha256_file, content)
+    fname = file.filename or f"upload.{file_type}"
 
-    existing = await db.scalar(
-        select(Invoice).where(
-            Invoice.tenant_id == uuid.UUID(user.tenant_id),
-            Invoice.sha256 == sha,
-        )
-    )
-    if existing:
+    def _check_dup():
+        c = get_service_client()
+        return c.table("invoices").select("id").eq("tenant_id", user.tenant_id).eq("sha256", sha).limit(1).execute()
+
+    dup = await asyncio.to_thread(_check_dup)
+    if dup.data:
+        existing_id = dup.data[0]["id"]
         return {
-            "data": {"invoice_id": existing.id, "job_id": None, "status": "already_exists"},
+            "data": {"invoice_id": existing_id, "job_id": None, "status": "already_exists"},
             "error": None,
             "request_id": None,
         }
 
-    storage_path = await asyncio.to_thread(upload_file, user.tenant_id, file.filename or f"upload.{file_type}", content)
-    invoice = Invoice(
-        tenant_id=uuid.UUID(user.tenant_id),
-        uploaded_by=uuid.UUID(user.id) if user.id and user.id != "api_key" else None,
-        file_name=file.filename or f"upload.{file_type}",
-        file_type=file_type,
-        storage_path=storage_path,
-        sha256=sha,
-        status="pending",
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(invoice)
-    await db.flush()
+    storage_path = await asyncio.to_thread(upload_file, user.tenant_id, fname, content)
+    now = datetime.now(timezone.utc).isoformat()
+    uploaded_by = user.id if user.id and user.id != "api_key" else None
 
-    job = Job(
-        tenant_id=uuid.UUID(user.tenant_id),
-        type="ingest",
-        status="queued",
-        payload={"invoice_id": str(invoice.id)},
-        created_at=datetime.now(timezone.utc),
-    )
-    db.add(job)
-    await db.commit()
-    await db.refresh(invoice)
+    def _insert_invoice():
+        c = get_service_client()
+        return c.table("invoices").insert({
+            "tenant_id": user.tenant_id,
+            "uploaded_by": uploaded_by,
+            "file_name": fname,
+            "file_type": file_type,
+            "storage_path": storage_path,
+            "sha256": sha,
+            "status": "pending",
+            "created_at": now,
+        }).execute()
 
-    await _enqueue_ingest(invoice.id, job.id, queue)
-    log.info("invoice.uploaded", invoice_id=str(invoice.id), tenant_id=user.tenant_id)
+    inv_res = await asyncio.to_thread(_insert_invoice)
+    invoice = inv_res.data[0]
+    invoice_id = invoice["id"]
+
+    def _insert_job():
+        c = get_service_client()
+        return c.table("jobs").insert({
+            "tenant_id": user.tenant_id,
+            "type": "ingest",
+            "status": "queued",
+            "payload": {"invoice_id": invoice_id},
+            "created_at": now,
+        }).execute()
+
+    job_res = await asyncio.to_thread(_insert_job)
+    job_id = job_res.data[0]["id"]
+
+    await _enqueue_ingest(uuid.UUID(invoice_id), uuid.UUID(job_id), queue)
+    log.info("invoice.uploaded", invoice_id=invoice_id, tenant_id=user.tenant_id)
     return {
-        "data": InvoiceUploadResponse(invoice_id=invoice.id, job_id=job.id, status="ingesting"),
+        "data": {"invoice_id": invoice_id, "job_id": job_id, "status": "ingesting"},
         "error": None,
         "request_id": None,
     }
@@ -115,19 +120,26 @@ async def list_invoices(
     status: str | None = Query(None),
     file_type: str | None = Query(None),
     user: CurrentUser = Depends(require_roles("admin", "analyst", "viewer", "api_user")),
-    db: AsyncSession = Depends(get_db),
 ):
-    q = select(Invoice).where(Invoice.tenant_id == uuid.UUID(user.tenant_id))
-    if status:
-        q = q.where(Invoice.status == status)
-    if file_type:
-        q = q.where(Invoice.file_type == file_type)
-    total = await db.scalar(select(func.count()).select_from(q.subquery()))
-    rows = (await db.execute(q.offset((page - 1) * limit).limit(limit))).scalars().all()
+    offset = (page - 1) * limit
+
+    def _list():
+        c = get_service_client()
+        q = c.table("invoices").select("*", count="exact").eq("tenant_id", user.tenant_id)
+        if status:
+            q = q.eq("status", status)
+        if file_type:
+            q = q.eq("file_type", file_type)
+        return q.range(offset, offset + limit - 1).execute()
+
+    res = await asyncio.to_thread(_list)
+    rows = res.data or []
+    total = res.count or 0
+
     return {
         "data": InvoiceListResponse(
             items=[InvoiceOut.model_validate(r) for r in rows],
-            total=total or 0,
+            total=total,
             page=page,
             limit=limit,
         ),
@@ -140,34 +152,31 @@ async def list_invoices(
 async def get_invoice(
     invoice_id: uuid.UUID,
     user: CurrentUser = Depends(require_roles("admin", "analyst", "viewer", "api_user")),
-    db: AsyncSession = Depends(get_db),
 ):
-    inv = await db.scalar(
-        select(Invoice).where(
-            Invoice.id == invoice_id,
-            Invoice.tenant_id == uuid.UUID(user.tenant_id),
-        )
-    )
-    if not inv:
+    def _get():
+        c = get_service_client()
+        return c.table("invoices").select("*").eq("id", str(invoice_id)).eq("tenant_id", user.tenant_id).limit(1).execute()
+
+    res = await asyncio.to_thread(_get)
+    if not res.data:
         raise HTTPException(404, "Invoice not found")
-    return {"data": InvoiceOut.model_validate(inv), "error": None, "request_id": None}
+    return {"data": InvoiceOut.model_validate(res.data[0]), "error": None, "request_id": None}
 
 
 @router.get("/{invoice_id}/download", response_model=dict)
 async def download_invoice(
     invoice_id: uuid.UUID,
     user: CurrentUser = Depends(require_roles("admin", "analyst", "viewer")),
-    db: AsyncSession = Depends(get_db),
 ):
-    inv = await db.scalar(
-        select(Invoice).where(
-            Invoice.id == invoice_id,
-            Invoice.tenant_id == uuid.UUID(user.tenant_id),
-        )
-    )
-    if not inv:
+    def _get():
+        c = get_service_client()
+        return c.table("invoices").select("storage_path").eq("id", str(invoice_id)).eq("tenant_id", user.tenant_id).limit(1).execute()
+
+    res = await asyncio.to_thread(_get)
+    if not res.data:
         raise HTTPException(404, "Invoice not found")
-    url = await asyncio.to_thread(get_signed_url, user.tenant_id, inv.storage_path)
+    storage_path = res.data[0]["storage_path"]
+    url = await asyncio.to_thread(get_signed_url, user.tenant_id, storage_path)
     return {"data": {"signed_url": url, "expires_in": 900}, "error": None, "request_id": None}
 
 
@@ -175,21 +184,25 @@ async def download_invoice(
 async def delete_invoice(
     invoice_id: uuid.UUID,
     user: CurrentUser = Depends(require_roles("admin")),
-    db: AsyncSession = Depends(get_db),
 ):
-    inv = await db.scalar(
-        select(Invoice).where(
-            Invoice.id == invoice_id,
-            Invoice.tenant_id == uuid.UUID(user.tenant_id),
-        )
-    )
-    if not inv:
+    def _get():
+        c = get_service_client()
+        return c.table("invoices").select("id,storage_path").eq("id", str(invoice_id)).eq("tenant_id", user.tenant_id).limit(1).execute()
+
+    res = await asyncio.to_thread(_get)
+    if not res.data:
         raise HTTPException(404, "Invoice not found")
+    storage_path = res.data[0]["storage_path"]
+
     try:
-        await asyncio.to_thread(delete_file, user.tenant_id, inv.storage_path)
+        await asyncio.to_thread(delete_file, user.tenant_id, storage_path)
     except Exception:
         pass
-    await db.delete(inv)
-    await db.commit()
+
+    def _delete():
+        c = get_service_client()
+        return c.table("invoices").delete().eq("id", str(invoice_id)).eq("tenant_id", user.tenant_id).execute()
+
+    await asyncio.to_thread(_delete)
     log.info("invoice.deleted", invoice_id=str(invoice_id), tenant_id=user.tenant_id)
     return {"data": {"deleted": True}, "error": None, "request_id": None}
